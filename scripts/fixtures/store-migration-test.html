@@ -22,8 +22,11 @@
       当时的默认画风就被钉死在 localStorage 里 —— 之后改代码默认值对已有存档完全无效，
       表现是"改了默认画风，重启后还是旧角色"。
 
-      本页造一份**旧版存档**（有 style:polished、无 stylePinned 标记，另带 size=1.3 / volume=0.25）：
-        期望 → 画风被迁移成当前代码默认（simple），而 size / volume 原样保留。
+      本页造一份**旧版存档**（有 style:"polished"、无 stylePinned 标记，另带 size=1.3 / volume=0.25）：
+        期望 → 画风被迁移成当前代码默认（art，本地无清单时渲染为简笔画），
+        而 size / volume 原样保留。
+      注意这里刻意用一个**已经被删掉的画风值**（polished 那套手画 SVG 已移除）——
+      老存档里存着它时也应当被识别为"旧默认值"并迁移掉，而不是渲染不出来。
       由 scripts/selftest-desktop.mjs 在**独立 --user-data-dir** 下运行，不会碰真实存档。
     -->
     <script>

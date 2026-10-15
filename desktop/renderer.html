@@ -155,10 +155,10 @@
         /* ignore */
       }
 
-      /* 画风：?style=simple|polished —— 只是"初始默认"，用户在菜单里改过就以用户为准 */
+      /* 画风：?style=art|simple —— 只是"初始默认"，用户在菜单里改过就以用户为准 */
       try {
         const st = new URLSearchParams(location.search).get("style");
-        if (st === "simple" || st === "polished") window.__HANDSOME_FISH_STYLE__ = st;
+        if (st === "art" || st === "simple") window.__HANDSOME_FISH_STYLE__ = st;
       } catch (error) {
         /* ignore */
       }
@@ -298,28 +298,28 @@
 
         if (api && typeof api.setArt === "function") {
           api.setArt(""); /* 从 ?art= 的图片切回内置 SVG */
-          for (const name of ["polished", "simple"]) {
+          for (const name of ["simple"]) {
             const r = checkStyle(name);
             ok(
-              `画风 ${name}：标记 + 六个可动部件齐全`,
+              `内置画风 ${name}：标记 + 六个可动部件齐全`,
               r.marker && r.missing.length === 0,
               r.missing.length ? "缺 " + r.missing.join(",") : "部件齐全",
             );
             ok(
-              `画风 ${name}：CSS 关键帧已生效（复用同一套动画，未新增动画代码）`,
+              `内置画风 ${name}：CSS 关键帧已生效`,
               r.running !== "none",
               r.running,
             );
           }
-          api.state.style = "polished";
+          api.state.style = "simple";
           api.redraw(); /* 复原，后面的检查按默认画风继续 */
         }
 
-        /* --- 表情系统：7 种表情 × 2 种画风都要能出五官 --- */
+        /* --- 表情系统：7 种表情都要能出五官 --- */
         if (api && typeof api.face === "function") {
           const EXPS = ["neutral", "smile", "surprised", "shy", "focus", "awkward", "sleepy"];
           const bad = [];
-          for (const st of ["polished", "simple"]) {
+          for (const st of ["simple"]) {
             for (const name of EXPS) {
               checkStyle(st); /* 先按该画风重建角色 */
               api.face(name); /* 再只换面部容器 */
@@ -328,13 +328,13 @@
             }
           }
           ok(
-            "7 种表情 × 2 种画风都能渲染出五官",
+            "7 种表情都能渲染出五官",
             bad.length === 0,
-            bad.length ? "失败：" + bad.join(",") : "14 组全部有内容",
+            bad.length ? "失败：" + bad.join(",") : "7 组全部有内容",
           );
 
           /* 换表情必须是**原位替换面部容器**：重建角色会把正在跑的 CSS 动画打断 */
-          checkStyle("polished");
+          checkStyle("simple");
           const faceNode = document.querySelector(".hf-face");
           const html0 = faceNode ? faceNode.innerHTML : "";
           api.face("focus");
@@ -344,7 +344,7 @@
           ok("换表情后循环动画未中断", armAnim2 !== "none", armAnim2);
 
           api.face("neutral");
-          api.state.style = "polished";
+          api.state.style = "simple";
           api.redraw();
         }
 
@@ -414,24 +414,26 @@
         if (styleSel) {
           const prevStyle = api.state.style;
 
-          styleSel.value = "polished";
-          styleSel.dispatchEvent(new Event("change", { bubbles: true }));
-          const afterPolished = document.querySelector(".hf-svg");
-          ok(
-            "菜单下拉切画风：state 与渲染都跟着变",
-            api.state.style === "polished" &&
-              !!afterPolished &&
-              afterPolished.classList.contains("is-style-polished"),
-            `state=${api.state.style}；class=${afterPolished ? afterPolished.getAttribute("class") : "无"}`,
-          );
-
           styleSel.value = "simple";
           styleSel.dispatchEvent(new Event("change", { bubbles: true }));
           const afterSimple = document.querySelector(".hf-svg");
           ok(
-            "菜单下拉再切一次：渲染真的换了（就是「切了没反应」那条链路）",
-            !!afterSimple && afterSimple.classList.contains("is-style-simple"),
-            afterSimple ? afterSimple.getAttribute("class") : "无",
+            "菜单下拉切到简笔画：state 与渲染都跟着变",
+            api.state.style === "simple" &&
+              !!afterSimple &&
+              afterSimple.classList.contains("is-style-simple"),
+            `state=${api.state.style}；class=${afterSimple ? afterSimple.getAttribute("class") : "无"}`,
+          );
+
+          /* 本页被 ?svg=1 强制走内置 SVG，所以没有素材清单可用；
+             选「作者原画」应当**优雅退回简笔画**而不是白屏 —— 这也是这条断言要盯的 */
+          styleSel.value = "art";
+          styleSel.dispatchEvent(new Event("change", { bubbles: true }));
+          const afterArt = document.querySelector(".hf-svg, .hf-img");
+          ok(
+            "菜单下拉切到作者原画：state 记下了，且无素材时优雅退回内置 SVG",
+            api.state.style === "art" && !!afterArt,
+            `state=${api.state.style}；渲染=${afterArt ? afterArt.getAttribute("class") : "无"}`,
           );
 
           /* 复原成入口时的画风，别把状态留给下一个断言 */

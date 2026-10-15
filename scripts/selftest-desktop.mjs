@@ -82,8 +82,9 @@ const shotPath = join(tmpdir(), `hf-selftest-${Date.now()}.png`);
 /**
  * 每次用**独立的浏览器 profile**：桌面外壳与 preview 都是 file:// 源、共用同一份
  * localStorage，自检里 setArt("") 会清掉真实存档 —— 测试不该动用户的设置。
+ * 而且**每个页面各自一份**（见 runPageWithRetry）：否则第①步里下拉测试存下的画风
+ * 会漏到第③步，让"作者原画"那条断言误报失败 —— 测试之间不该通过存档串味。
  */
-const profileDir = join(tmpdir(), `hf-selftest-profile-${Date.now()}`);
 
 const MIGRATION_PAGE =
   "file:///" + join(ROOT, "scripts", "fixtures", "store-migration-test.html").replace(/\\/g, "/");
@@ -100,7 +101,7 @@ console.log(`页面:   ${PAGE}\n`);
  * （实测过一次：同时还在跑生成对比图的 Chrome，自检那次抓到 0 行而误报失败）。
  * 验证工具自己不可靠是最糟的情况，所以只在两次都空时才判失败。
  */
-function runChrome(fd, page) {
+function runChrome(fd, page, profileDir) {
   try {
     /* stdio 的 stderr 直接接到文件描述符，不建管道 —— 受限沙箱里带管道的 stdio 会 EPERM */
     spawnSync(
@@ -132,22 +133,30 @@ function readLines(prefix) {
     .map((l) => l.slice(l.indexOf(prefix)).replace(/", source:.*$/, ""));
 }
 
-/** 带一次重试地跑一个页面，返回它打印的标记行 */
+/** 带一次重试地跑一个页面，返回它打印的标记行。**每个页面各自一份临时 profile**（互不串味） */
 function runPageWithRetry(page, prefix) {
+  const profileDir = join(
+    tmpdir(),
+    `hf-selftest-profile-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  );
   let out = [];
   let raw = "";
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    rmSync(logPath, { force: true });
-    const fd = openSync(logPath, "w");
-    try {
-      runChrome(fd, page);
-    } finally {
-      closeSync(fd);
+  try {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      rmSync(logPath, { force: true });
+      const fd = openSync(logPath, "w");
+      try {
+        runChrome(fd, page, profileDir);
+      } finally {
+        closeSync(fd);
+      }
+      raw = readFileSync(logPath, "utf8");
+      out = readLines(prefix);
+      if (out.length > 0) break;
+      if (attempt === 1) console.log("(第一次没抓到输出，重试一次…)\n");
     }
-    raw = readFileSync(logPath, "utf8");
-    out = readLines(prefix);
-    if (out.length > 0) break;
-    if (attempt === 1) console.log("(第一次没抓到输出，重试一次…)\n");
+  } finally {
+    rmSync(profileDir, { recursive: true, force: true });
   }
   return { lines: out, raw };
 }
@@ -195,5 +204,4 @@ if (artPass.lines.length === 0) {
 
 rmSync(logPath, { force: true });
 rmSync(shotPath, { force: true });
-rmSync(profileDir, { recursive: true, force: true });
 process.exit(status);
