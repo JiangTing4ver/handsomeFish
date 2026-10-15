@@ -1,0 +1,8 @@
+# handsomeFish profile patch layer — insert one loader entry for the plugin
+# package. The browser half is picked up by dsh-client-modules through the
+# package's `dsh.client` declaration, exactly like the shipped ui-* packages.
+#
+# 必须是顶层 YAML 数组；全注释会被解析成 null 并导致启动报错。
+- insert:
+    - id: handsome-fish
+      name: 'dsh-handsome-fish'

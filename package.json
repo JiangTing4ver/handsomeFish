@@ -1,0 +1,39 @@
+{
+  "name": "dsh-handsome-fish",
+  "version": "0.1.0",
+  "description": "帅鱼 handsomeFish — 住在 DSH 界面角落的桌面宠物挂件：程序化 SVG 角色、待机动画、点击互动、拖拽边缘吸附、随机台词气泡与程序化合成音效。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [],
+      "platform": "web"
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "desktop-pet",
+    "pet",
+    "widget",
+    "handsomefish",
+    "桌宠",
+    "挂件"
+  ],
+  "license": "MIT"
+}
