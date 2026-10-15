@@ -202,7 +202,34 @@ renderCharacter():
 | 吸附 | 水平方向总是吸到最近一侧；垂直方向只在靠近上下边时吸 | 关掉"边缘吸附"即可自由摆放 |
 | 镜像 | 贴左侧时整体 `scaleX(-1)` | 所以角色素材只需出**一张朝左**的 |
 
-### 6.3 部件级动画（换角色时按这张表挂）
+### 6.3 画风切换（两种风格共用一套动画契约）
+
+![两种画风对比](shots/styles.png)
+
+`state.style` 有两个值，`currentSVG()` 据此选角色定义：
+
+| 值 | 角色定义 | 长什么样 |
+|---|---|---|
+| `polished`（默认） | `xiaolanSVG()` | 精致描画：蓝发 + 呆毛 + 白/蓝卫衣 |
+| `simple` | `xiaolanSimpleSVG()` | 简笔画原作风：**无发的白圆头 + 点眼 + 小方嘴 + 蓝色长衫 + 粗黑线四肢** |
+
+**关键设计：两份 SVG 刻意使用相同的部件类名**，于是 CSS 里那套关键帧与
+`transform-origin` 完全复用 —— 实测 `getComputedStyle(.xl-arm-l).animationName` 在两种
+画风下都是同一个 `hf-arml`，**没有为第二种画风新增任何动画代码**。
+
+要做到这一点有两个纪律：
+
+1. **部件语义要对齐**：简笔画的躯干也叫 `.xl-torso`，眼睛也叫 `.hf-eye`，浮动容器也叫 `.hf-bob`。
+2. **关节朝向要对齐**：`.xl-arm-l` 的 `transform-origin: 82% 8%` 是"包围盒右上角"，
+   所以简笔画的左臂也必须画成**肩在右上、手在左下**，这个百分比才正好落在肩关节上。
+
+样式切换走菜单里的 `<select data-k="style">`；`onMenuInput` 对 `SELECT` 单独取值
+（枚举值是字符串，不能走数值 clamp，否则会被当成 `NaN` 丢掉），改完调 `renderCharacter()`。
+
+调试用：`?style=simple|polished` 只是**初始默认**（写进 `DEFAULTS.style`），
+用户在菜单里改过就以用户的选择为准；`window.__HANDSOME_FISH__.redraw()` 可手动重绘。
+
+### 6.4 部件级动画（换角色时按这张表挂）
 
 | 类名 | 部件 | 内置动画 |
 |---|---|---|
@@ -216,7 +243,7 @@ renderCharacter():
 
 配色改 `<defs>` 里五个渐变即可；把 `xl-hoodie` 调白、`xl-hood` 调浅就是白大褂版。
 
-### 6.4 音效：Web Audio 现场合成
+### 6.5 音效：Web Audio 现场合成
 
 四种音效（气泡/结束音/提醒/落地）全部用振荡器 + 指数包络合成，**没有任何音频文件**。
 好处：零体积、零版权、零网络请求，并顺带绕开「IDM/迅雷等下载管理器把挂件音频请求
@@ -225,7 +252,7 @@ renderCharacter():
 浏览器自动播放策略要求首次用户手势后才能出声 —— 首次左键点角色或右键开菜单时会
 自动 `resume()`。
 
-### 6.5 持久化
+### 6.6 持久化
 
 | 键 | 内容 |
 |---|---|
@@ -330,7 +357,7 @@ Windows 上 Electron 是 **GUI 子系统**程序：从没有控制台的父进�
 | 想改 | 动哪里 | 生效方式 | 别忘了 |
 |---|---|---|---|
 | 台词 | `lib/client.js` 的 `LINES` 六池 | Ctrl+F5 | 单条尽量 ≤12 字（气泡最宽 `min(230px,58vw)`） |
-| 角色形象（程序化） | `lib/client.js` 的 `xiaolanSVG()` + `<defs>` 渐变 | Ctrl+F5 | 部件动画类名见 §6.3 |
+| 角色形象（程序化） | `lib/client.js` 的 `xiaolanSVG()` / `xiaolanSimpleSVG()` + `<defs>` 渐变 | Ctrl+F5 | 部件动画类名见 §6.4；两套画风必须保持部件类名与关节朝向一致（§6.3） |
 | 角色图（素材） | 右键上传，或 `?art=` | 即时 | 画布用 **4:3**（见 [asset-checklist.md](asset-checklist.md) 2.2） |
 | 音效 | `createAudio()` 里的 `pop/chime/ding/thud` | Ctrl+F5 | 全部是合成，不要引入音频文件 |
 | 加大小的上下限 | `DEFAULTS.size` 的 clamp 与菜单 `input` 的 min/max | Ctrl+F5 | 舞台几何是 224×168，放大 160% 时素材要够清晰 |

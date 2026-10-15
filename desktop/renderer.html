@@ -142,6 +142,14 @@
         /* ignore */
       }
 
+      /* 画风：?style=simple|polished —— 只是"初始默认"，用户在菜单里改过就以用户为准 */
+      try {
+        const st = new URLSearchParams(location.search).get("style");
+        if (st === "simple" || st === "polished") window.__HANDSOME_FISH_STYLE__ = st;
+      } catch (error) {
+        /* ignore */
+      }
+
       /* ---------------------------------------------------------------------
          2. 最小宿主桩：和 DSH 宿主一样，把 factory 物化后调用 apply(ctx)
          --------------------------------------------------------------------- */
@@ -231,6 +239,43 @@
           !!svgChar || (!!artImg && artImg.naturalWidth > 0),
           svgChar ? "内置 SVG" : artImg ? "自定义图" : "都没有",
         );
+
+        /* --- 画风切换 ---
+           要证明的不只是"能渲染"，而是**两种画风确实共用同一套 CSS 动画**：
+           光有 SVG 部件、但 CSS 没作用上，换风格就会变成一个不动的图。
+           注意本次自检是带 ?art= 跑的（角色是 <img>），所以先切回内置 SVG。 */
+        const ANIM_PARTS = [".hf-bob", ".xl-torso", ".xl-arm-l", ".xl-arm-r", ".hf-eye", ".hf-shadow"];
+        const checkStyle = (name) => {
+          api.state.style = name;
+          api.redraw();
+          const svg = document.querySelector(".hf-svg");
+          const arm = document.querySelector(".xl-arm-l");
+          return {
+            marker: !!svg && svg.classList.contains("is-style-" + name),
+            missing: ANIM_PARTS.filter((sel) => !document.querySelector(sel)),
+            /* 最强的一条：CSS 关键帧真的落到了这个画风的部件上 */
+            running: arm ? getComputedStyle(arm).animationName : "none",
+          };
+        };
+
+        if (api && typeof api.setArt === "function") {
+          api.setArt(""); /* 从 ?art= 的图片切回内置 SVG */
+          for (const name of ["polished", "simple"]) {
+            const r = checkStyle(name);
+            ok(
+              `画风 ${name}：标记 + 六个可动部件齐全`,
+              r.marker && r.missing.length === 0,
+              r.missing.length ? "缺 " + r.missing.join(",") : "部件齐全",
+            );
+            ok(
+              `画风 ${name}：CSS 关键帧已生效（复用同一套动画，未新增动画代码）`,
+              r.running !== "none",
+              r.running,
+            );
+          }
+          api.state.style = "polished";
+          api.redraw(); /* 复原，后面的检查按默认画风继续 */
+        }
 
         if (fish) {
           const before = window.__HF_BRIDGE_LOG__.length;

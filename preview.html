@@ -171,6 +171,14 @@
         localStorage.removeItem("dsh-handsome-fish:art");
       }
 
+      /* ?style=simple|polished —— 直接换画风看效果（运行中也能用右键菜单切） */
+      try {
+        const st = new URLSearchParams(location.search).get("style");
+        if (st === "simple" || st === "polished") window.__HANDSOME_FISH_STYLE__ = st;
+      } catch (error) {
+        /* ignore */
+      }
+
       /* ------------------ 最小宿主桩：把 factory 直接物化并 apply ------------------ */
       window.__PREVIEW_CTX__ = {
         on() {
