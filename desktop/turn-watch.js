@@ -19,6 +19,9 @@ const DEFAULT_MAX_FAILURES = 3;
  * @param {string} options.url - 状态路由绝对地址
  * @param {number} [options.intervalMs]
  * @param {() => void} options.onTurnEnd - 检测到新的一轮结束时调用（首次基线不算）
+ * @param {(busy: boolean) => void} [options.onBusyChange] - 「一轮正在进行中」变化时调用。
+ *   桌面窗没有键盘焦点、收不到键盘事件，所以"他在认真工作"这个状态在桌面壳这边
+ *   只能靠 turn/start→turn/end 来体现。
  * @param {(msg: string) => void} [options.log]
  * @param {number} [options.maxFailures]
  * @param {typeof fetch} [options.fetchImpl] - 便于注入测试桩
@@ -29,6 +32,7 @@ function createTurnWatcher(options) {
   const {
     url,
     onTurnEnd,
+    onBusyChange,
     intervalMs = DEFAULT_INTERVAL_MS,
     log = () => {},
     maxFailures = DEFAULT_MAX_FAILURES,
@@ -39,6 +43,8 @@ function createTurnWatcher(options) {
 
   /** 最近一次观测到的 seq；-1 表示还没有基线 */
   let seq = -1;
+  /** 最近一次观测到的"一轮进行中"；null 表示宿主还没上报过这个字段 */
+  let busy = null;
   let failures = 0;
   let stopped = false;
   let timer = null;
@@ -61,6 +67,15 @@ function createTurnWatcher(options) {
       const data = await response.json();
       failures = 0;
       if (!data || typeof data.seq !== "number") return;
+      /* 「一轮进行中」是先于 seq 判断的：它决定角色是不是在"认真工作" */
+      if (typeof data.busy === "boolean" && data.busy !== busy) {
+        busy = data.busy;
+        try {
+          if (typeof onBusyChange === "function") onBusyChange(busy);
+        } catch (error) {
+          log(`onBusyChange 抛错：${error && error.message}`);
+        }
+      }
       if (seq < 0) {
         /* 首次只记基线：不回放宿主进程里已经发生过的历史轮次 */
         seq = data.seq;
@@ -92,7 +107,7 @@ function createTurnWatcher(options) {
     stop,
     /** 供测试与诊断读取的内部状态 */
     stats() {
-      return { seq, failures, stopped, polls };
+      return { seq, failures, stopped, polls, busy };
     },
   };
 }

@@ -69,6 +69,23 @@ contextBridge.exposeInMainWorld("handsomeFishBridge", (msg) => {
    —— 页面自己发不出这个请求：Chromium 禁止 file:// 页面 fetch http://。
    --------------------------------------------------------------------------- */
 const TURN_CHANNEL = "handsome-fish:turn-end";
+/** 一轮进行中 / 结束：桌面窗收不到键盘事件，靠它进入"认真工作"状态 */
+const BUSY_CHANNEL = "handsome-fish:busy";
+
+contextBridge.exposeInMainWorld("handsomeFishBusy", {
+  subscribe(onChange) {
+    if (typeof onChange !== "function") return () => {};
+    const listener = (_event, busy) => {
+      try {
+        onChange(busy === true);
+      } catch (error) {
+        /* 页面里的回调抛错不能影响 IPC 通道 */
+      }
+    };
+    ipcRenderer.on(BUSY_CHANNEL, listener);
+    return () => ipcRenderer.removeListener(BUSY_CHANNEL, listener);
+  },
+});
 
 contextBridge.exposeInMainWorld("handsomeFishTurns", {
   subscribe(onTurnEnd) {

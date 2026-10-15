@@ -6,6 +6,8 @@
     "click": "cand-mature-8.png",
     "drag": "cand-mature-3.png",
     "drop": "cand-mature-7.png",
-    "turnEnd": "cand-mature-4.png"
+    "turnEnd": "cand-mature-4.png",
+    "typing": "cand-mature-9.png",
+    "busy": "cand-mature-9.png"
   }
 }

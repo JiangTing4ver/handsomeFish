@@ -79,6 +79,13 @@ const CROP = (() => {
 const TH = Number(opt("th", 232));
 const PAD = Number(opt("pad", 0.05));
 const FEATHER = !flag("no-feather");
+/* 背景判定：white = 三通道都 >= --th（默认，简笔画/白底插画）；
+   auto = 采样图像边缘取背景色，再按 --tol 的颜色距离判定（用于非纯白底）；
+   #rrggbb = 直接指定背景色 */
+const BG = String(opt("bg", "white"));
+const TOL = Number(opt("tol", 36));
+/* 已经是抠好的透明图（例如用户用在线 AI 抠图跑过）：跳过抠图，只做裁边 + 4:3 规格化 */
+const ALREADY_CUT = flag("already-cut");
 
 /* ---------------- 找浏览器 ---------------- */
 const CANDIDATES = [
@@ -116,6 +123,7 @@ const page = `<!doctype html>
 <script>
 const OUT_W = ${OUT_W}, OUT_H = ${OUT_H};
 const TH = ${TH}, PAD = ${PAD}, FEATHER = ${FEATHER};
+const BG = ${JSON.stringify(BG)}, TOL = ${TOL}, ALREADY_CUT = ${ALREADY_CUT};
 const CROP = ${CROP ? JSON.stringify(CROP) : "null"};
 const src = new Image();
 src.onload = () => { try { run(); } catch (e) { log("FAIL " + e.name + ": " + e.message); } };
@@ -142,10 +150,36 @@ function run() {
   const d = id.data;
 
   /* ---- 1) 从四边 flood fill，把"与边缘连通的白"判为背景 ---- */
-  const white = (p) => {
-    const i = p * 4;
-    return d[i] >= TH && d[i + 1] >= TH && d[i + 2] >= TH;
-  };
+  /* ---- 1) 背景判定 + 从四边 flood fill ---- */
+  let bgColor = null;
+  if (BG === "auto") {
+    /* 采样四条边的中点：真实背景通常覆盖边缘，取中位数比取平均更抗噪 */
+    const rs = [], gs = [], bs = [];
+    const sample = (x, y) => {
+      const i = (Math.min(sh - 1, Math.max(0, y)) * sw + Math.min(sw - 1, Math.max(0, x))) * 4;
+      rs.push(d[i]); gs.push(d[i + 1]); bs.push(d[i + 2]);
+    };
+    for (let x = 0; x < sw; x += Math.max(1, Math.floor(sw / 24))) { sample(x, 0); sample(x, sh - 1); }
+    for (let y = 0; y < sh; y += Math.max(1, Math.floor(sh / 24))) { sample(0, y); sample(sw - 1, y); }
+    const median = (arr) => arr.slice().sort((a, b) => a - b)[Math.floor(arr.length / 2)];
+    bgColor = [median(rs), median(gs), median(bs)];
+  } else if (/^#[0-9a-f]{6}$/i.test(BG)) {
+    bgColor = [parseInt(BG.slice(1, 3), 16), parseInt(BG.slice(3, 5), 16), parseInt(BG.slice(5, 7), 16)];
+  }
+
+  const isBg = ALREADY_CUT
+    ? () => false
+    : bgColor
+      ? (p) => {
+          const i = p * 4;
+          const dr = d[i] - bgColor[0], dg = d[i + 1] - bgColor[1], db = d[i + 2] - bgColor[2];
+          return Math.sqrt(dr * dr + dg * dg + db * db) <= TOL;
+        }
+      : (p) => {
+          const i = p * 4;
+          return d[i] >= TH && d[i + 1] >= TH && d[i + 2] >= TH;
+        };
+
   const seen = new Uint8Array(sw * sh);
   const stack = [];
   const push = (p) => { if (!seen[p]) stack.push(p); };
@@ -156,7 +190,7 @@ function run() {
     const p = stack.pop();
     if (seen[p]) continue;
     seen[p] = 1;
-    if (!white(p)) continue;
+    if (!isBg(p)) continue;
     d[p * 4 + 3] = 0;
     cleared++;
     const x = p % sw, y = (p - x) / sw;
@@ -216,7 +250,8 @@ function run() {
   const total = sw * sh;
   log("源图 " + src.naturalWidth + "x" + src.naturalHeight +
       (CROP ? " → 裁切 " + sw + "x" + sh + " @" + sx + "," + sy : "") +
-      " | 阈值 " + TH + " | 边缘软化 " + (FEATHER ? "开" : "关"));
+      " | " + (ALREADY_CUT ? "已抠好：跳过背景判定" : bgColor ? "背景色 rgb(" + bgColor.join(",") + ") 容差 " + TOL : "白底阈值 " + TH) +
+      " | 边缘软化 " + (FEATHER ? "开" : "关"));
   log("清掉背景 " + (100 * cleared / total).toFixed(1) + "% | 角色包围盒 " + bw + "x" + bh +
       " @" + minX + "," + minY + " | 不透明 " + (100 * opaque / total).toFixed(1) + "%");
   log("输出 " + OUT_W + "x" + OUT_H + " | 角色绘制 " + dw + "x" + dh + " @" + dx + "," + dy +

@@ -119,11 +119,24 @@
         if (window.handsomeFishTurns && typeof window.handsomeFishTurns.subscribe === "function") {
           window.handsomeFishTurns.subscribe((payload) => {
             console.log("[handsomeFish] 收到轮次事件", JSON.stringify(payload || {}));
-            window.dispatchEvent(new CustomEvent("handsome-fish:turn-end", { detail: payload || null }));
-          });
+            window.dispatchEvent(new CustomEvent("handsome-fish:turn-end", { detail: payload || null }));          });
         }
       } catch (error) {
         console.warn("[handsomeFish] 订阅轮次事件失败:", error);
+      }
+
+      /* 「一轮进行中」→ 翻译成客户端认识的 window 事件（桌面窗没有键盘焦点，
+         收不到键盘事件，所以"他在认真工作"在这里只能由轮次状态体现） */
+      try {
+        if (window.handsomeFishBusy && typeof window.handsomeFishBusy.subscribe === "function") {
+          window.handsomeFishBusy.subscribe((busy) => {
+            window.dispatchEvent(
+              new CustomEvent("handsome-fish:busy", { detail: { busy: busy === true } }),
+            );
+          });
+        }
+      } catch (error) {
+        console.warn("[handsomeFish] 订阅忙碌状态失败:", error);
       }
 
       /* ---------------------------------------------------------------------
@@ -386,10 +399,44 @@
           sayProbe.textContent = "";
           window.dispatchEvent(new CustomEvent("handsome-fish:turn-end"));
           ok(
-            "外壳推入轮次事件 → 角色做出反应",
-            sayProbe.classList.contains("is-on") && sayProbe.textContent.length > 0,
+            "外壳推入轮次事件 → 角色做出反应",            sayProbe.classList.contains("is-on") && sayProbe.textContent.length > 0,
             sayProbe.textContent || "无反应",
           );
+        }
+
+        /* --- 菜单里的画风下拉必须真的能换角色（放在最后：切画风会顺带说一句话，
+               那会让前面「气泡隐藏时不抢鼠标」的断言看到开着的气泡）---
+           上面那些断言是**直接改 state**，走不到「select 的 change 事件 → onMenuInput →
+           renderCharacter」这条真实链路。用户报过「切换画风之后并没有发生改变」，
+           所以这条必须由控件本身驱动。 */
+        const styleSel = document.querySelector('[data-k="style"]');
+        ok("设置菜单里有画风下拉", !!styleSel);
+        if (styleSel) {
+          const prevStyle = api.state.style;
+
+          styleSel.value = "polished";
+          styleSel.dispatchEvent(new Event("change", { bubbles: true }));
+          const afterPolished = document.querySelector(".hf-svg");
+          ok(
+            "菜单下拉切画风：state 与渲染都跟着变",
+            api.state.style === "polished" &&
+              !!afterPolished &&
+              afterPolished.classList.contains("is-style-polished"),
+            `state=${api.state.style}；class=${afterPolished ? afterPolished.getAttribute("class") : "无"}`,
+          );
+
+          styleSel.value = "simple";
+          styleSel.dispatchEvent(new Event("change", { bubbles: true }));
+          const afterSimple = document.querySelector(".hf-svg");
+          ok(
+            "菜单下拉再切一次：渲染真的换了（就是「切了没反应」那条链路）",
+            !!afterSimple && afterSimple.classList.contains("is-style-simple"),
+            afterSimple ? afterSimple.getAttribute("class") : "无",
+          );
+
+          /* 复原成入口时的画风，别把状态留给下一个断言 */
+          styleSel.value = prevStyle;
+          styleSel.dispatchEvent(new Event("change", { bubbles: true }));
         }
 
         lines.push("");

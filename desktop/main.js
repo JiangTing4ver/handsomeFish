@@ -81,6 +81,8 @@ process.on("uncaughtException", (error) => {
 const CHANNEL = "handsome-fish:bridge";
 /* 主进程 → 渲染页：检测到新的一轮对话结束 */
 const TURN_CHANNEL = "handsome-fish:turn-end";
+/** 一轮进行中 / 结束（桌面窗收不到键盘事件，靠它进入"认真工作"状态） */
+const BUSY_CHANNEL = "handsome-fish:busy";
 
 /**
  * 「一轮对话结束」状态路由的绝对地址。
@@ -281,6 +283,12 @@ if (!app.requestSingleInstanceLock()) {
           });
         },
         log: (message) => console.log("[handsome-fish] " + message),
+        /* 一轮进行中 → 桌面窗里的小蓝也在"认真工作"。
+           桌面窗是独立的透明窗口、没有键盘焦点，收不到键盘事件，只能靠这个。 */
+        onBusyChange: (busy) => {
+          if (!win || win.isDestroyed()) return;
+          win.webContents.send(BUSY_CHANNEL, busy === true);
+        },
       });
       turnWatcher.start();
     }

@@ -209,8 +209,7 @@ check("host 半侧：路由挂在 inject(['webServer']) 的作用域里", () => 
   return `${hostHarness.effects[0] || "route"}；路由 ${hostHarness.routes.length} 条`;
 });
 
-check("本地原画清单：引用的图都在（有 assets/ 时才检查）", () => {
-  const dir = join(ROOT, "assets");
+check("本地原画清单：引用的图都在（有 assets/ 时才检查）", () => {  const dir = join(ROOT, "assets");
   const manifestPath = join(dir, "art-manifest.json");
   if (!existsSync(manifestPath)) {
     return "本地没有 assets/art-manifest.json（全新克隆的正常状态），跳过";
@@ -324,6 +323,36 @@ await checkAsync("host 半侧：turn/end → 计数递增（含合并与静默�
   return `${before} → ${hostModule.turnEndCount()}（合并窗口与静默原因均生效）`;
 });
 
+await checkAsync("host 半侧：turn/start→end 反映为 busy（桌面壳靠它进入「工作」状态）", async () => {
+  const sub = hostHarness.listeners.find((l) => l.name === "session/event");
+  const route = hostHarness.routes.find((r) => r.path === "/dsh-handsome-fish/events.json");
+  const { Writable } = await import("node:stream");
+  const readPayload = () =>
+    new Promise((resolve, reject) => {
+      const chunks = [];
+      const res = new Writable({
+        write(chunk, _enc, cb) {
+          chunks.push(chunk);
+          cb();
+        },
+      });
+      res.writeHead = () => res;
+      res.on("finish", () => resolve(JSON.parse(Buffer.concat(chunks).toString("utf8"))));
+      res.on("error", reject);
+      route.handler({ method: "GET", url: "/dsh-handsome-fish/events.json" }, res);
+    });
+
+  sub.cb({ id: "s1" }, { type: "turn/start", data: { turn: 1 } });
+  const during = await readPayload();
+  assert(during.busy === true, `turn/start 之后 busy 应为 true，实际 ${during.busy}`);
+
+  sub.cb({ id: "s1" }, { type: "turn/end", data: { turn: 1, reason: { kind: "completed" } } });
+  const after = await readPayload();
+  assert(after.busy === false, `turn/end 之后 busy 应为 false，实际 ${after.busy}`);
+
+  return "turn/start → busy=true；turn/end → busy=false";
+});
+
 await checkAsync("host 半侧：路由返回合法 JSON 且只读", async () => {
   const route = hostHarness.routes[0];
   const call = (method) => {
@@ -353,8 +382,9 @@ await checkAsync("host 半侧：路由返回合法 JSON 且只读", async () => 
     "Content-Type 不是 application/json",
   );
   assert(ok.headers["Access-Control-Allow-Origin"] === "*", "缺少 CORS 头");
-  /* 只读：不暴露会话内容/标题/凭据。允许的字段是白名单，多一个都要显式改这里 */
-  const ALLOWED = "at,hits,ok,seq";
+  /* 只读：不暴露会话内容/标题/凭据。允许的字段是白名单，多一个都要显式改这里
+     busy = 一轮是否进行中（给桌面壳用：桌面窗收不到键盘事件，只能靠它进入"工作"状态） */
+  const ALLOWED = "at,busy,hits,ok,seq";
   assert(
     Object.keys(payload).sort().join(",") === ALLOWED,
     `不应暴露白名单外的字段：${Object.keys(payload).join(",")}（白名单 ${ALLOWED}）`,
