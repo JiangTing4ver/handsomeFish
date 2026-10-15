@@ -127,17 +127,18 @@
       }
 
       /* ---------------------------------------------------------------------
-         1.7 默认角色图 —— 把用户自己的素材带进桌面挂件
-             桌面载体是 file:// 源，可以直接用相对路径引用仓库里的图。
-             换角色：改这一行的 DEFAULT_ART，或用 ?art=../assets/xxx.png 临时指定。
-             （用户右键上传过的图优先级更高，存在 localStorage 里。）
+         1.7 角色图：默认**不**覆盖
+             内置的程序化 SVG 小蓝才是默认形象，和 DSH 插件里看到的是同一个角色。
+             只有显式给 ?art=<路径> 时才用图片替换（便于临时试验素材）。
+             常规换角色走右键菜单的「换个角色图」，存在 localStorage 里、优先级最高。
+             ⚠️ 别在这里写死一张图：那会把桌面壳的角色换成别的角色，
+                与插件里的形象不一致（本仓库的 assets/ 是素材试验品，不是默认形象）。
          --------------------------------------------------------------------- */
-      const DEFAULT_ART = "../assets/pet-xiaolv.png";
       try {
         const q = new URLSearchParams(location.search).get("art");
-        window.__HANDSOME_FISH_DEFAULT_ART__ = q || DEFAULT_ART;
+        if (q) window.__HANDSOME_FISH_DEFAULT_ART__ = q;
       } catch (error) {
-        window.__HANDSOME_FISH_DEFAULT_ART__ = DEFAULT_ART;
+        /* ignore */
       }
 
       /* ---------------------------------------------------------------------
@@ -201,25 +202,34 @@
         const fish = document.querySelector(".dsh-handsome-fish-fish");
         ok("角色 DOM 存在", !!fish);
 
-        /* 素材是否真的接进来了：光看"没报错"不够，必须证明图片真的解码成功。
-           图片是异步解码的，所以这里 await —— 否则会把"还在加载"误判为加载失败。 */
+        /* 角色渲染：默认是内置程序化 SVG 角色，只有显式给 ?art= 时才换成图片。
+           两种情况都要验，且图片必须真的解码成功 ——「没报错」不算证据。 */
+        const artParam = new URLSearchParams(location.search).get("art");
         const artImg = document.querySelector(".hf-img");
-        const artSrc = artImg ? artImg.getAttribute("src") : "";
-        if (!artImg) {
-          ok("默认角色图已加载（用户素材接入桌面载体）", false, "没有 .hf-img（仍在用程序化 SVG）");
-        } else {
-          try {
-            await artImg.decode();
-            ok(
-              "默认角色图已加载（用户素材接入桌面载体）",
-              artImg.naturalWidth > 0,
-              `${artSrc} → 实际 ${artImg.naturalWidth}x${artImg.naturalHeight}`,
-            );
-          } catch (error) {
-            ok("默认角色图已加载（用户素材接入桌面载体）", false, `${artSrc} 解码失败：${error.message}`);
+        const svgChar = document.querySelector(".hf-svg");
+        if (artParam) {
+          if (!artImg) {
+            ok("?art= 指定的角色图已接入", false, `给了 ?art= 但页面里没有 .hf-img`);
+          } else {
+            try {
+              await artImg.decode();
+              ok(
+                "?art= 指定的角色图已解码",
+                artImg.naturalWidth > 0,
+                `${artImg.getAttribute("src")} → 实际 ${artImg.naturalWidth}x${artImg.naturalHeight}`,
+              );
+            } catch (error) {
+              ok("?art= 指定的角色图已解码", false, `${artParam} 解码失败：${error.message}`);
+            }
           }
+        } else {
+          ok("默认走内置程序化 SVG 角色（未指定 ?art）", !!svgChar, svgChar ? "内联 SVG" : "没有 .hf-svg");
         }
-        ok("挂件已切到自定义角色模式", !!fish && fish.classList.contains("is-custom"));
+        ok(
+          "角色已渲染（SVG 或自定义图）",
+          !!svgChar || (!!artImg && artImg.naturalWidth > 0),
+          svgChar ? "内置 SVG" : artImg ? "自定义图" : "都没有",
+        );
 
         if (fish) {
           const before = window.__HF_BRIDGE_LOG__.length;

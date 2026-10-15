@@ -29,7 +29,7 @@
 
 | 文件 | 作用 | 验证 |
 |---|---|---|
-| `renderer.html` | OS 级载体页：自带 `__ModuleLoader__` / `ctx` 桩，直接加载 `../lib/client.js`；并把用户素材接成默认角色 | 机读自检 **15/15** |
+| `renderer.html` | OS 级载体页：自带 `__ModuleLoader__` / `ctx` 桩，直接加载 `../lib/client.js`（默认角色＝内置 SVG 小蓝，与插件一致） | 机读自检 **15/15** |
 | `../lib/client.js` 的桥 | 上报「鼠标在不在角色上」（点击穿透）、接收外部推入的轮次事件 | 自检覆盖 hover 双向 + 轮次事件触发反应 |
 | `turn-watch.js` | 轮次监视器：Node 侧轮询状态路由，检测 seq 递增 | `scripts/check.mjs` 单测 2 项（基线/递增/去重、失败退避） |
 | `main.js` | 主进程：透明置顶无边框窗口、命中测试开关、轮次监视、退出 | 语法通过，运行时实测见下 |
@@ -135,39 +135,41 @@ npm start        # electron 已装好（44.7.2）；桌面上会出现角色，�
 > Electron 44 且运行正常）。**请你在自己的终端里跑一次 `npm start`**，
 > 然后看 `desktop/handsome-fish.log` 有没有越过 `ready-to-show`。
 
-## 角色图：用你自己的素材
+## 角色：默认是内置的小蓝，素材是可选替换
 
-桌面外壳默认加载 `../assets/pet-xiaolv.png`（`renderer.html` 里的 `DEFAULT_ART`），
-自检会断言它**真的解码成功**（`512x512`），所以改错路径会立刻被测出来。
+**默认不加载任何图片。** 桌面外壳与 DSH 插件用的是同一个 `lib/client.js`，
+角色就是里面手写的程序化 SVG **小蓝**（`xiaolanSVG()`，见 [../docs/xiaolan.md](../docs/xiaolan.md)）
+—— 零素材、零体积、部件级动画最全（呆毛/手臂/躯干/眨眼/灵感火花）。
 
-- 换一张：改 `DEFAULT_ART`，或用 `npm start -- --art=...`（临时）
-从搜集来的 18 张素材里挑出的可用候选：
+`assets/` 下的图是**从参考素材转出来的试验品，不是默认形象**，只有显式给 `?art=` 才生效：
 
-| 文件 | 评价 |
-|---|---|
-| `assets/pet-xiaolv.png` | ✅ **最好**：单人、面部居中、柔边干净（当前默认） |
-| `assets/pet-11.png` | ✅ 不错：绿发角色，可用作备选 |
-| `assets/pet-baijin.png` | ⚠️ 一般：人物偏左、气球线干扰构图 |
+```powershell
+npm start -- --art=../assets/pet-11.png
+```
 
-> 一条可复用的经验：**素材必须是"单人插画"**。封面、群像、带标题文字的图裁成圆形后
-> 一定会带进杂物和字（实测 02 / 04 / 16 就是这种，不可用，已删）。
-> 想要真正的**全身**宠物形象，得先按 [../docs/character-spec.md](../docs/character-spec.md)
-> 生成透明底全身立绘 —— 半身插画只能做出"柔边圆形头像"这种效果。
+> ⚠️ 别把某张图写死成默认：那会让桌面壳的角色与插件里的形象不一致。
+> 而且按 [../docs/xiaolan.md](../docs/xiaolan.md) 的考证，`assets/pet-xiaolv.png` 是
+> **机器人小绿**、`pet-baijin.png` 属于另一部作品 —— 都不是目标角色小蓝。
+
+常规换角色（不用改代码）：右键 → **「换个角色图」**，存在 localStorage，优先级最高。
+
+把参考素材转成透明宠物图（试验用）：
+
+```powershell
+node scripts\make-pet-image.mjs "_refs\xiaolan\02_xiaolan_yuxiaolv.jpg" "assets\x.png" --focus "50% 26%"
+```
+
+它用 headless Chrome 裁切 + 柔边圆形蒙版 + `--default-background-color=00000000`，
+直接产出带透明通道的 PNG，不需要任何图像库或抠图模型。
 
 ![角色候选](../docs/shots/pet-candidates.png)
 
-- 换一张：改 `DEFAULT_ART`，或用 `npm start -- --art=../assets/pet-11.png`
-- 想用别处传进来的图：右键 → 「换个角色图」（存在 localStorage，优先级更高）
-- 把普通插画转成透明宠物图：
-  ```powershell
-  node scripts\make-pet-image.mjs "_refs\xiaolan\09_baijin.png" "assets\pet-baijin.png" --focus "34% 26%"
-  ```
-  它用 headless Chrome 裁正方形 + 柔边圆形蒙版 + `--default-background-color=00000000`，
-  直接产出带透明通道的 PNG，不需要任何图像库或抠图模型。
+上面这些是转换试验品。可复用的一条经验：**素材必须是"单人插画"** ——
+封面、群像、带标题文字的图裁成圆形后一定带进杂物和字（实测 02 / 04 / 16 就是这种，已删）。
 
-
-- 拖到桌面任意位置；右键打开设置；菜单里有**「退出挂件」**
-- 想换角色图的其它方式：见上面「角色图」一节
+> 📌 **画布比例要用 4:3，不是正方形。** 舞台是 224×168（[../docs/asset-checklist.md](../docs/asset-checklist.md) 2.2），
+> 正方形图会被缩到 168×168，白白浪费 25% 宽度。
+> 当前 `make-pet-image.mjs` 产出的是正方形 512×512，要用它出正式素材得先给脚本加 4:3 支持。
 
 ## 已知待办
 

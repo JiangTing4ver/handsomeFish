@@ -43,10 +43,16 @@ function resolveDshBase() {
 const dshBase = resolveDshBase();
 const eventsUrl = dshBase ? `${dshBase}/dsh-handsome-fish/events.json` : "";
 
+/* 带 ?art= 跑：默认形象是内置程序化 SVG，图片通道只有显式指定时才走 ——
+   所以自检里主动指一张，把「素材能不能真的解码」这条也覆盖掉。
+   （assets/ 里这些是从参考素材转出来的试验品，不是默认形象。） */
+const TEST_ART = "../assets/pet-xiaolv.png";
+
 const PAGE =
   "file:///" +
   join(ROOT, "desktop", "renderer.html").replace(/\\/g, "/") +
   "?selftest=1" +
+  "&art=" + encodeURIComponent(TEST_ART) +
   (eventsUrl ? "&events=" + encodeURIComponent(eventsUrl) : "");
 
 const CANDIDATES = [
