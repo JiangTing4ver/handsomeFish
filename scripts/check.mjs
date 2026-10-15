@@ -209,22 +209,36 @@ check("host 半侧：路由挂在 inject(['webServer']) 的作用域里", () => 
   return `${hostHarness.effects[0] || "route"}；路由 ${hostHarness.routes.length} 条`;
 });
 
-check("本地原画清单：引用的图都在（有 assets/ 时才检查）", () => {  const dir = join(ROOT, "assets");
+check("本地原画清单：引用的图都在（有 assets/ 时才检查）", () => {
+  const dir = join(ROOT, "assets");
   const manifestPath = join(dir, "art-manifest.json");
   if (!existsSync(manifestPath)) {
     return "本地没有 assets/art-manifest.json（全新克隆的正常状态），跳过";
   }
   const m = readJson(manifestPath);
-  assert(typeof m.default === "string" && m.default, "清单缺少 default");
-  const states = m.states && typeof m.states === "object" ? m.states : {};
-  const names = [m.default].concat(Object.keys(states).map((k) => states[k]));
-  const missing = names.filter((n) => typeof n !== "string" || !n || !existsSync(join(dir, n)));
+  /* 支持两种格式：新的 sets（多套原画集）与旧的单套 */
+  const sets = m.sets && typeof m.sets === "object" ? m.sets : { art: m };
+  const keys = Object.keys(sets);
+  assert(keys.length > 0, "清单里没有任何原画集");
+  if (m.default_set) {
+    assert(sets[m.default_set], `default_set「${m.default_set}」在 sets 里不存在`);
+  }
+  const missing = [];
+  const notPng = [];
+  let stateCount = 0;
+  for (const key of keys) {
+    const s = sets[key] || {};
+    assert(typeof s.default === "string" && s.default, `原画集「${key}」缺少 default`);
+    const states = s.states && typeof s.states === "object" ? s.states : {};
+    stateCount += Object.keys(states).length;
+    for (const name of [s.default].concat(Object.values(states))) {
+      if (typeof name !== "string" || !name || !existsSync(join(dir, name))) missing.push(`${key}:${name}`);
+      else if (!/\.png$/i.test(name)) notPng.push(`${key}:${name}`);
+    }
+  }
   assert(missing.length === 0, `清单引用了不存在的图：${missing.join(", ")}`);
-  const notPng = [m.default]
-    .concat(Object.values(states))
-    .filter((n) => !/\.png$/i.test(n));
   assert(notPng.length === 0, `清单里的图应是 PNG（透明底），这几个不是：${notPng.join(", ")}`);
-  return `default=${m.default}；状态 ${Object.keys(states).length} 个，引用的图全部存在`;
+  return `${keys.length} 套原画（${keys.join("/")}）、${stateCount} 个状态映射，引用的图全部存在`;
 });
 
 /* 原画路由的端到端验证：真发一张图、真拒一次目录穿越。

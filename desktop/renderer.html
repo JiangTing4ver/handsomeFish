@@ -413,27 +413,26 @@
         ok("设置菜单里有画风下拉", !!styleSel);
         if (styleSel) {
           const prevStyle = api.state.style;
-
-          styleSel.value = "simple";
-          styleSel.dispatchEvent(new Event("change", { bubbles: true }));
-          const afterSimple = document.querySelector(".hf-svg");
+          /* 选项是按清单动态生成的（各套原画集 + 内置线稿），所以这里遍历真实选项，
+             而不是写死某几个值 —— 清单换了这套测试也不用改 */
+          const values = Array.from(styleSel.options).map((o) => o.value);
           ok(
-            "菜单下拉切到简笔画：state 与渲染都跟着变",
-            api.state.style === "simple" &&
-              !!afterSimple &&
-              afterSimple.classList.contains("is-style-simple"),
-            `state=${api.state.style}；class=${afterSimple ? afterSimple.getAttribute("class") : "无"}`,
+            "画风下拉至少有「内置线稿」兜底项",
+            values.includes("svg"),
+            values.length ? values.join(",") : "没有任何选项",
           );
 
-          /* 本页被 ?svg=1 强制走内置 SVG，所以没有素材清单可用；
-             选「作者原画」应当**优雅退回简笔画**而不是白屏 —— 这也是这条断言要盯的 */
-          styleSel.value = "art";
-          styleSel.dispatchEvent(new Event("change", { bubbles: true }));
-          const afterArt = document.querySelector(".hf-svg, .hf-img");
+          const bad = [];
+          for (const v of values) {
+            styleSel.value = v;
+            styleSel.dispatchEvent(new Event("change", { bubbles: true }));
+            const got = document.querySelector(".hf-svg, .hf-img");
+            if (api.state.style !== v || !got) bad.push(`${v}→state=${api.state.style},渲染=${got ? "有" : "无"}`);
+          }
           ok(
-            "菜单下拉切到作者原画：state 记下了，且无素材时优雅退回内置 SVG",
-            api.state.style === "art" && !!afterArt,
-            `state=${api.state.style}；渲染=${afterArt ? afterArt.getAttribute("class") : "无"}`,
+            "逐个切画风：state 与渲染都跟着走（无素材时优雅退回内置线稿）",
+            bad.length === 0,
+            bad.length ? bad.join(" ") : values.join(" → "),
           );
 
           /* 复原成入口时的画风，别把状态留给下一个断言 */
