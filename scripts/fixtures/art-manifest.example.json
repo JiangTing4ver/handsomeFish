@@ -1,13 +1,26 @@
 {
-  "note": "清单模板：复制成 assets/art-manifest.json 后按自己的图改名。文件名对应 assets/ 里的透明 PNG。",
-  "default": "cand-mature-2.png",
-  "states": {
-    "greet": "cand-mature-5.png",
-    "click": "cand-mature-8.png",
-    "drag": "cand-mature-3.png",
-    "drop": "cand-mature-7.png",
-    "turnEnd": "cand-mature-4.png",
-    "typing": "cand-mature-9.png",
-    "busy": "cand-mature-9.png"
+  "note": "清单模板：复制成 assets/art-manifest.json 后按自己的图改名。文件名对应 assets/ 里的透明 PNG。加一套新画风只是往 sets 里加一项，不用改代码。",
+  "default_set": "mature",
+  "sets": {
+    "mature": {
+      "label": "作者原画·成熟",
+      "default": "cand-mature-2.png",
+      "states": {
+        "greet": "cand-mature-5.png",
+        "click": "cand-mature-8.png",
+        "drag": "cand-mature-3.png",
+        "drop": "cand-mature-7.png",
+        "turnEnd": "cand-mature-4.png",
+        "typing": "cand-mature-9.png",
+        "busy": "cand-mature-9.png"
+      }
+    },
+    "simple": {
+      "label": "作者原画·简笔",
+      "default": "art-4x3.png",
+      "states": {
+        "click": "art-alt-4x3.png"
+      }
+    }
   }
 }
