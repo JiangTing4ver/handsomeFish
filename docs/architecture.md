@@ -256,10 +256,39 @@ renderCharacter():
 
 | 键 | 内容 |
 |---|---|
-| `localStorage['dsh-handsome-fish:v1']` | 设置 JSON：大小/音量/静音/墨镜/台词/吸附/结束音/隐藏/位置锚点 |
+| `localStorage['dsh-handsome-fish:v1']` | 设置 JSON：大小/音量/静音/**画风**/台词/吸附/结束音/隐藏/位置锚点 |
 | `localStorage['dsh-handsome-fish:art']` | 自定义角色图的 base64 data URL（单独存，免得把设置文件撑爆） |
 
 ---
+
+### 6.7 表情系统（眼型 × 嘴型 × 腮红）
+
+![表情 × 画风对照表](shots/expressions.png)
+
+词汇取自 `_refs/xiaolan/` 下「风格-成熟」与「风格-简笔」两个目录里按情绪命名的参考图。
+一个表情 = **眼型 + 嘴型 + 是否腮红**；两种画风各自实现同一套词汇，
+所以换画风时表情语义不变（`smile` 在两边都是"笑眼 + 上扬嘴"）。
+
+| 表情 | 眼型 | 嘴型 | 腮红 | 用在哪 |
+|---|---|---|---|---|
+| `neutral` 平常 | `plain` 点眼 / 瞳眼 | `small` 小方嘴 | — | 静息 |
+| `smile` 莞尔 | `arc` ∩ 笑眼 | `smile` 上扬 | — | 首次出现 |
+| `surprised` 吃惊 | `wide` 放大 | `open` 张嘴 | — | 拖动中 |
+| `shy` 害羞 | `arc` | `small` | ✓ | 被点击 |
+| `focus` 认真 | `line` 平直 | `flat` 直线 | — | 一轮对话结束 |
+| `awkward` 尴尬 | `plain` | `wavy` 波浪 | ✓ | 松手落位 |
+| `sleepy` 打哈欠 | `arc` | `open` | ✓ | 空闲久了（与平常轮换） |
+
+状态 → 表情的映射集中在 `STATE_EXPRESSION` 一张表里，改行为只改这张表；
+临时表情带 `holdMs`，到点自动回到"静息表情"（`restingExpression`）。
+
+**关键约束：换表情只替换 `<g class="hf-face">` 的 innerHTML，绝不重建角色。**
+重建会让正在跑的 CSS 动画（浮动/摆臂/眨眼）从头开始，视觉上"跳"一下。
+自检里有三条专门盯这个：换表情后面部内容要变、`.hf-face` 必须还是同一个 DOM 节点、
+且 `.xl-arm-l` 的 `animationName` 仍在跑。
+
+> 表情与画风是**正交的两维**：`state.style` 决定"用哪套 SVG"，`expression` 决定
+> "脸上画什么"。所以 7 种表情 × 2 种画风 = 14 种组合，而代码里只有两处小型五官构造器。
 
 ## 7. 桌面外壳（`desktop/`）
 

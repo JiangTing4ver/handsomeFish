@@ -171,10 +171,14 @@
         localStorage.removeItem("dsh-handsome-fish:art");
       }
 
-      /* ?style=simple|polished —— 直接换画风看效果（运行中也能用右键菜单切） */
+      /* ?style=simple|polished —— 直接换画风看效果（运行中也能用右键菜单切）
+         ?expr=<表情名>      —— 强制某个表情，用于截图核对 */
       try {
-        const st = new URLSearchParams(location.search).get("style");
+        const qs = new URLSearchParams(location.search);
+        const st = qs.get("style");
         if (st === "simple" || st === "polished") window.__HANDSOME_FISH_STYLE__ = st;
+        const ex = qs.get("expr");
+        if (ex) window.__HANDSOME_FISH_EXPRESSION__ = ex;
       } catch (error) {
         /* ignore */
       }

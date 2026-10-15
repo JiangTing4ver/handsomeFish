@@ -277,6 +277,39 @@
           api.redraw(); /* 复原，后面的检查按默认画风继续 */
         }
 
+        /* --- 表情系统：7 种表情 × 2 种画风都要能出五官 --- */
+        if (api && typeof api.face === "function") {
+          const EXPS = ["neutral", "smile", "surprised", "shy", "focus", "awkward", "sleepy"];
+          const bad = [];
+          for (const st of ["polished", "simple"]) {
+            for (const name of EXPS) {
+              checkStyle(st); /* 先按该画风重建角色 */
+              api.face(name); /* 再只换面部容器 */
+              const face = document.querySelector(".hf-face");
+              if (!face || face.innerHTML.length === 0) bad.push(`${st}/${name}`);
+            }
+          }
+          ok(
+            "7 种表情 × 2 种画风都能渲染出五官",
+            bad.length === 0,
+            bad.length ? "失败：" + bad.join(",") : "14 组全部有内容",
+          );
+
+          /* 换表情必须是**原位替换面部容器**：重建角色会把正在跑的 CSS 动画打断 */
+          checkStyle("polished");
+          const faceNode = document.querySelector(".hf-face");
+          const html0 = faceNode ? faceNode.innerHTML : "";
+          api.face("focus");
+          const armAnim2 = getComputedStyle(document.querySelector(".xl-arm-l")).animationName;
+          ok("换表情：面部内容确实变了", !!faceNode && faceNode.innerHTML !== html0, "内容已替换");
+          ok("换表情：面部容器仍是同一 DOM 节点（未重建角色）", document.querySelector(".hf-face") === faceNode, "同节点");
+          ok("换表情后循环动画未中断", armAnim2 !== "none", armAnim2);
+
+          api.face("neutral");
+          api.state.style = "polished";
+          api.redraw();
+        }
+
         if (fish) {
           const before = window.__HF_BRIDGE_LOG__.length;
           fish.dispatchEvent(new PointerEvent("pointerenter", { bubbles: false }));
