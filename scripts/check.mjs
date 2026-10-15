@@ -362,7 +362,38 @@ await checkAsync("桌面外壳轮次监视器：连续失败后退避停止", as
   return `失败 ${stats.failures} 次后停止`;
 });
 
-/* --------------------------------- 11. desktop profile 安装状态（只报告信息） */
+/* --------------------- 11. 文档相对链接可达（防止文档腐烂） */
+check("文档相对链接与图片可达", () => {
+  const docs = [
+    "README.md",
+    "desktop/README.md",
+    "docs/architecture.md",
+    "docs/xiaolan.md",
+    "docs/asset-checklist.md",
+    "docs/character-spec.md",
+  ];
+  const broken = [];
+  const linkRe = /\[[^\]]*\]\(([^)]+)\)/g; /* 同时匹配 [文字](链接) 与 ![图](路径) */
+  for (const rel of docs) {
+    const abs = join(ROOT, rel);
+    if (!existsSync(abs)) {
+      broken.push(`${rel}（文档本身不存在）`);
+      continue;
+    }
+    for (const m of readFileSync(abs, "utf8").matchAll(linkRe)) {
+      const raw = m[1].trim();
+      if (/^(https?:|mailto:|#)/i.test(raw)) continue; /* 外链与纯锚点跳过 */
+      const target = raw.split("#")[0];
+      if (!target) continue;
+      const resolved = resolve(dirname(abs), decodeURIComponent(target));
+      if (!existsSync(resolved)) broken.push(`${rel} → ${raw}`);
+    }
+  }
+  assert(broken.length === 0, `失效链接：\n      ${broken.join("\n      ")}`);
+  return `${docs.length} 份文档，链接与图片全部可达`;
+});
+
+/* --------------------------------- 12. desktop profile 安装状态（只报告信息） */
 check("desktop profile 安装状态", () => {
   const dir = join(os.homedir(), ".dsh", "profiles", "desktop");
   const profilePkg = join(dir, "package.json");
