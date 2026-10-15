@@ -86,6 +86,8 @@ const BG = String(opt("bg", "white"));
 const TOL = Number(opt("tol", 36));
 /* 已经是抠好的透明图（例如用户用在线 AI 抠图跑过）：跳过抠图，只做裁边 + 4:3 规格化 */
 const ALREADY_CUT = flag("already-cut");
+/* 只保留最大的一块连通区域（角色本体），自动丢掉气泡/文字/桌面线/动效符号那些小块 */
+const MAIN_ONLY = flag("main");
 
 /* ---------------- 找浏览器 ---------------- */
 const CANDIDATES = [
@@ -123,7 +125,7 @@ const page = `<!doctype html>
 <script>
 const OUT_W = ${OUT_W}, OUT_H = ${OUT_H};
 const TH = ${TH}, PAD = ${PAD}, FEATHER = ${FEATHER};
-const BG = ${JSON.stringify(BG)}, TOL = ${TOL}, ALREADY_CUT = ${ALREADY_CUT};
+const BG = ${JSON.stringify(BG)}, TOL = ${TOL}, ALREADY_CUT = ${ALREADY_CUT}, MAIN_ONLY = ${MAIN_ONLY};
 const CROP = ${CROP ? JSON.stringify(CROP) : "null"};
 const src = new Image();
 src.onload = () => { try { run(); } catch (e) { log("FAIL " + e.name + ": " + e.message); } };
@@ -200,8 +202,51 @@ function run() {
     if (y < sh - 1) push(p + sw);
   }
 
-  /* ---- 2) 边缘软化：紧邻透明区、且本身偏白的像素按亮度给半透明（抗锯齿过渡）---- */
-  if (FEATHER) {
+  /* ---- 1.5) 只保留最大的一块连通区域（角色本体）----
+     漫画格子里除了角色还有气泡、文字、桌面线、汗滴/动效符号，它们通常与角色**不相连**，
+     所以"取最大连通块"就能把这些杂物一次丢掉 —— 比手工猜裁切范围可靠得多。 */
+  let dropped = 0;
+  if (MAIN_ONLY && !ALREADY_CUT) {
+    const label = new Int32Array(sw * sh).fill(-1);
+    let best = -1;
+    let bestArea = 0;
+    let next = 0;
+    const queue = new Int32Array(sw * sh);
+    for (let start = 0; start < sw * sh; start++) {
+      if (label[start] >= 0 || d[start * 4 + 3] <= 8) continue;
+      const id = next++;
+      let head = 0;
+      let tail = 0;
+      queue[tail++] = start;
+      label[start] = id;
+      let area = 0;
+      while (head < tail) {
+        const p = queue[head++];
+        area++;
+        const x = p % sw, y = (p - x) / sw;
+        /* 八邻域：斜向相接也算同一块，避免把描边断成好几段 */
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx, ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= sw || ny >= sh) continue;
+            const q = ny * sw + nx;
+            if (label[q] >= 0 || d[q * 4 + 3] <= 8) continue;
+            label[q] = id;
+            queue[tail++] = q;
+          }
+        }
+      }
+      if (area > bestArea) { bestArea = area; best = id; }
+    }
+    if (best >= 0) {
+      for (let p = 0; p < sw * sh; p++) {
+        if (d[p * 4 + 3] > 8 && label[p] !== best) { d[p * 4 + 3] = 0; dropped++; }
+      }
+    }
+  }
+
+  /* ---- 2) 边缘软化：紧邻透明区、且本身偏白的像素按亮度给半透明（抗锯齿过渡）---- */  if (FEATHER) {
     const a0 = Uint8ClampedArray.from(d);
     const alphaAt = (x, y) => (x < 0 || y < 0 || x >= sw || y >= sh ? 0 : a0[(y * sw + x) * 4 + 3]);
     for (let y = 0; y < sh; y++) {
@@ -253,7 +298,8 @@ function run() {
       " | " + (ALREADY_CUT ? "已抠好：跳过背景判定" : bgColor ? "背景色 rgb(" + bgColor.join(",") + ") 容差 " + TOL : "白底阈值 " + TH) +
       " | 边缘软化 " + (FEATHER ? "开" : "关"));
   log("清掉背景 " + (100 * cleared / total).toFixed(1) + "% | 角色包围盒 " + bw + "x" + bh +
-      " @" + minX + "," + minY + " | 不透明 " + (100 * opaque / total).toFixed(1) + "%");
+      " @" + minX + "," + minY + " | 不透明 " + (100 * opaque / total).toFixed(1) + "%" +
+      (MAIN_ONLY ? " | 丢掉非主体小块 " + dropped + " px" : ""));
   log("输出 " + OUT_W + "x" + OUT_H + " | 角色绘制 " + dw + "x" + dh + " @" + dx + "," + dy +
       " | 缩放 " + (scale * 100).toFixed(1) + "%");
   log("DONE");
