@@ -370,6 +370,7 @@ check("文档相对链接与图片可达", () => {
     "docs/architecture.md",
     "docs/xiaolan.md",
     "docs/asset-checklist.md",
+    "docs/asset-intake.md",
     "docs/character-spec.md",
   ];
   const broken = [];

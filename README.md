@@ -7,6 +7,7 @@
 >
 > **📚 文档索引**：[技术文档](docs/architecture.md)（架构 / 平台 API / 数据流 / 验证体系 / 踩坑清单）·
 > [角色考证](docs/xiaolan.md) · [素材规格](docs/asset-checklist.md) ·
+> [素材收件规范](docs/asset-intake.md)（你怎么把图片信息给我，我按它生产）·
 > [AI 生图提示词](docs/character-spec.md) · [桌面外壳](desktop/README.md)
 
 ![小蓝默认形象](docs/shots/default.png)
@@ -192,6 +193,7 @@ handsomeFish/
 │   ├── architecture.md     # 【技术文档】架构、平台 API、数据流、验证体系、踩坑清单
 │   ├── xiaolan.md          # 目标角色考证（设定、图源陷阱、三条产出路线）
 │   ├── asset-checklist.md  # 素材规格（4:3 / 透明度 / 体积 / 分辨率）与验收清单
+│   ├── asset-intake.md     # 素材收件规范与台账：你怎么把图片信息给我，我按它生产
 │   ├── character-spec.md   # AI 生图提示词（三套风格 + 负面词）与抠图后处理
 │   └── shots/              # 展示图与验证截图
 └── _shots/                 # 本地临时截图（headless Chrome 产出，可删，不入库）
