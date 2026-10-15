@@ -240,6 +240,12 @@
           svgChar ? "内置 SVG" : artImg ? "自定义图" : "都没有",
         );
 
+        /* 图片角色也要"活着"：图片没有部件级动画，浮动/点头/挤压必须挂在 .hf-art 上，
+           否则换成作者原画后角色会完全静止（只剩拖动倾斜） */
+        const artWrap = document.querySelector(".hf-art");
+        const artAnim = artWrap ? getComputedStyle(artWrap).animationName : "none";
+        ok("图片角色仍在浮动（.hf-art 动画已生效）", !!artWrap && artAnim !== "none", artAnim);
+
         /* --- 画风切换 ---
            要证明的不只是"能渲染"，而是**两种画风确实共用同一套 CSS 动画**：
            光有 SVG 部件、但 CSS 没作用上，换风格就会变成一个不动的图。

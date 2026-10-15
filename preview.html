@@ -183,6 +183,14 @@
         /* ignore */
       }
 
+      /* ?art=<相对本页的路径> —— 用一张图当角色（与桌面壳的 ?art= 同义，便于出图核对） */
+      try {
+        const art = new URLSearchParams(location.search).get("art");
+        if (art) window.__HANDSOME_FISH_DEFAULT_ART__ = art;
+      } catch (error) {
+        /* ignore */
+      }
+
       /* ------------------ 最小宿主桩：把 factory 直接物化并 apply ------------------ */
       window.__PREVIEW_CTX__ = {
         on() {
