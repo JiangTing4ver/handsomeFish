@@ -48,20 +48,21 @@ node scripts\selftest-desktop.mjs
 
 ```
 HF-SELFTEST OK pass=15 fail=0
-PASS  client.js 已物化并 apply
-PASS  桥收到 ready（carrier=desktop）
+PASS  client.js 已物化并 apply  [dsh-handsome-fish]
+PASS  桥收到 ready  [{"type":"ready","version":"0.1.0","carrier":"desktop"}]
+PASS  桥判定载体为 desktop
 PASS  角色 DOM 存在
-PASS  默认角色图已加载（用户素材接入桌面载体）  [../assets/pet-xiaolv.png → 实际 512x512]
-PASS  挂件已切到自定义角色模式
-PASS  鼠标进入角色 → 桥报 hover:true
+PASS  ?art= 指定的角色图已解码  [../scripts/fixtures/art-4x3.png → 实际 96x72]
+PASS  角色已渲染（SVG 或自定义图）  [自定义图]
+PASS  鼠标进入角色 → 桥报 hover:true  [{"type":"hover","on":true}]
 PASS  鼠标离开角色 → 桥报 hover:false
-PASS  台词气泡隐藏时不抢鼠标
-PASS  台词气泡显示时可接收点击
+PASS  台词气泡隐藏时不抢鼠标  [none]
+PASS  台词气泡显示时可接收点击  [is-on=true pointer-events=auto]
 PASS  桌面模式下菜单多出「退出挂件」
 PASS  挂件层已注入
-PASS  页面保持透明（不盖住桌面）
-PASS  角色已定位在视口内
-PASS  外壳推入轮次事件 → 角色做出反应
+PASS  页面保持透明（不盖住桌面）  [rgba(0, 0, 0, 0)]
+PASS  角色已定位在视口内  [632px,310px]
+PASS  外壳推入轮次事件 → 角色做出反应  [嗯，没报错。]
 ```
 
 ## 通道协议
@@ -141,15 +142,20 @@ npm start        # electron 已装好（44.7.2）；桌面上会出现角色，�
 角色就是里面手写的程序化 SVG **小蓝**（`xiaolanSVG()`，见 [../docs/xiaolan.md](../docs/xiaolan.md)）
 —— 零素材、零体积、部件级动画最全（呆毛/手臂/躯干/眨眼/灵感火花）。
 
-`assets/` 下的图是**从参考素材转出来的试验品，不是默认形象**，只有显式给 `?art=` 才生效：
+本地 `assets/` 下那些图是从参考素材转出来的**试验品，不入库**（`.gitignore` 里排除了，
+与 `_refs/` 同理 —— 都派生自第三方参考图），也不是默认形象。要临时用它，必须显式给 `?art=`：
 
 ```powershell
-npm start -- --art=../assets/pet-11.png
+npm start -- --art=../assets/pet-11.png     # 本地试验品（全新克隆里没有这个目录）
 ```
+
+仓库里**自带**的自检素材是 `scripts/fixtures/art-4x3.png`（我们自己画的 4:3 透明底小图），
+`selftest-desktop.mjs` 用它来覆盖"图片通道能解码 + `file://` 相对路径能解析"这两条。
 
 > ⚠️ 别把某张图写死成默认：那会让桌面壳的角色与插件里的形象不一致。
 > 而且按 [../docs/xiaolan.md](../docs/xiaolan.md) 的考证，`assets/pet-xiaolv.png` 是
 > **机器人小绿**、`pet-baijin.png` 属于另一部作品 —— 都不是目标角色小蓝。
+> （正因如此它们只留在本地，没入库。）
 
 常规换角色（不用改代码）：右键 → **「换个角色图」**，存在 localStorage，优先级最高。
 

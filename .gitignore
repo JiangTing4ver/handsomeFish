@@ -6,6 +6,10 @@ node_modules/
 # 第三方角色参考图：仅供本地比对，不入库、不随包分发
 _refs/
 
+# 素材试验品（由 scripts/make-pet-image.mjs 从 _refs/ 派生）：与 _refs/ 同理，
+# 派生自第三方参考图，仅供本地试验，不入库。仓库自带的自检素材在 scripts/fixtures/
+assets/
+
 # 编辑器
 .vscode/
 .idea/

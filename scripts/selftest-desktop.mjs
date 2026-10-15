@@ -44,9 +44,10 @@ const dshBase = resolveDshBase();
 const eventsUrl = dshBase ? `${dshBase}/dsh-handsome-fish/events.json` : "";
 
 /* 带 ?art= 跑：默认形象是内置程序化 SVG，图片通道只有显式指定时才走 ——
-   所以自检里主动指一张，把「素材能不能真的解码」这条也覆盖掉。
-   （assets/ 里这些是从参考素材转出来的试验品，不是默认形象。） */
-const TEST_ART = "../assets/pet-xiaolv.png";
+   所以自检里主动指一张，把「素材能不能真的解码」+「file:// 相对路径能不能解析」都覆盖掉。
+   用的是 scripts/fixtures/art-4x3.png：我们自己画的 4:3 透明底小图（可入库）。
+   注意别改成 assets/ 下那些试验品 —— 它们派生自第三方参考图，不入库，全新克隆里不存在。 */
+const TEST_ART = "../scripts/fixtures/art-4x3.png";
 
 const PAGE =
   "file:///" +

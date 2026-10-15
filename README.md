@@ -178,9 +178,10 @@ handsomeFish/
 ├── scripts/
 │   ├── check.mjs           # 静态 + 逻辑自检（16 项）：插件规范、host 端到端、轮次监视器、文档链接
 │   ├── selftest-desktop.mjs # 桌面载体自检（15 项，headless 浏览器即可跑，不用装 Electron）
-│   └── make-pet-image.mjs  # 把普通插画转成透明宠物图（裁切 + 柔边圆蒙版，无需图像库）
+│   ├── make-pet-image.mjs  # 把普通插画转成透明宠物图（裁切 + 柔边圆蒙版，无需图像库）
+│   └── fixtures/           # 自检用的素材（我们自绘的 4:3 透明 PNG，可入库）
 ├── preview.html            # 独立预览 / 调试台：不依赖 DSH 宿主即可看角色、截图、量几何
-├── assets/                 # 角色图试验品（由 make-pet-image.mjs 从素材生成，非默认形象）
+├── assets/                 # 素材试验品（本地，不入库）；仓库自带的自检素材在 scripts/fixtures/
 ├── _refs/                  # 素材参考图（搜集来的插画，仅作设计参考，不入库）
 ├── desktop/                # 真·桌面级外壳（Electron）：透明置顶窗口 + 点击穿透 + 轮次通道
 │   ├── main.js             #   主进程：窗口/命中测试/轮次监视/日志落盘

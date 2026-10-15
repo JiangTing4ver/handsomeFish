@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>handsomeFish 自检素材生成源</title>
+    <style>
+      /* 4:3、完全透明底、纯自绘 —— 用来产出 scripts/fixtures/art-4x3.png
+         这份素材是我们自己的，不含任何第三方美术，所以可以放心入库。
+         重新生成：
+           chrome --headless=new --disable-gpu --no-sandbox --hide-scrollbars \
+             --default-background-color=00000000 --window-size=96,72 \
+             --screenshot=scripts/fixtures/art-4x3.png \
+             scripts/fixtures/art-source.html
+      */
+      html,
+      body {
+        margin: 0;
+        width: 96px;
+        height: 72px;
+        overflow: hidden;
+        background: transparent;
+      }
+      svg {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="96" height="72" viewBox="0 0 96 72" xmlns="http://www.w3.org/2000/svg">
+      <!-- 主体：一个不透明色块，占画布约 80%，便于验证"解码成功 + 有真实像素" -->
+      <rect x="10" y="14" width="76" height="44" rx="10" fill="#4d6bfe" />
+      <!-- 内部两个高对比形状：缩到 20px 也还能分辨，方便人眼在截图里确认 -->
+      <circle cx="34" cy="36" r="10" fill="#ffffff" />
+      <rect x="52" y="26" width="22" height="20" rx="4" fill="#ffe8a8" />
+      <!-- 四角小点：用来验证透明区域确实透明（而不是白底） -->
+      <circle cx="3" cy="3" r="2" fill="#4d6bfe" opacity="0.5" />
+      <circle cx="93" cy="69" r="2" fill="#4d6bfe" opacity="0.5" />
+    </svg>
+  </body>
+</html>
