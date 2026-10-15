@@ -210,8 +210,8 @@ renderCharacter():
 
 | 值 | 角色定义 | 长什么样 |
 |---|---|---|
-| `polished`（默认） | `xiaolanSVG()` | 精致描画：蓝发 + 呆毛 + 白/蓝卫衣 |
-| `simple` | `xiaolanSimpleSVG()` | 简笔画原作风：**无发的白圆头 + 点眼 + 小方嘴 + 蓝色长衫 + 粗黑线四肢** |
+| `simple`（**默认**） | `xiaolanSimpleSVG()` | 简笔画原作风：**无发的白圆头 + 点眼 + 小方嘴 + 蓝色长衫 + 粗黑线四肢** |
+| `polished` | `xiaolanSVG()` | 精致描画：蓝发 + 呆毛 + 白/蓝卫衣 |
 
 **关键设计：两份 SVG 刻意使用相同的部件类名**，于是 CSS 里那套关键帧与
 `transform-origin` 完全复用 —— 实测 `getComputedStyle(.xl-arm-l).animationName` 在两种
@@ -228,6 +228,32 @@ renderCharacter():
 
 调试用：`?style=simple|polished` 只是**初始默认**（写进 `DEFAULTS.style`），
 用户在菜单里改过就以用户的选择为准；`window.__HANDSOME_FISH__.redraw()` 可手动重绘。
+
+#### ⚠️ 「代码默认值」必须与「用户显式选择」分开
+
+`writeStore()` 会把 `DEFAULTS` 的每一项都写进 localStorage。于是第一版有个隐蔽的坑：
+**用户只要打开过一次菜单，当时的默认画风就被存盘了**，此后改代码里的默认值
+（`carrierStyle()` 的返回值）对已有存档的 profile **完全无效** ——
+症状就是"改了默认画风，重启后还是旧角色"。
+
+解法是加一个 `stylePinned` 标记：
+
+- `readStore()`：读到 `stylePinned !== true` 的**旧存档**时，**忽略存档里的 `style`**、
+  改用当前代码默认（一次性迁移）；其它偏好（大小/音量/位置）照常保留
+- 用户在菜单里显式选过画风后 → `stylePinned = true` 并写盘，从此不再被代码默认值覆盖
+
+回归测试：`scripts/fixtures/store-migration-test.html`，已接进 `scripts/selftest-desktop.mjs`
+的**第二步**（第一步是桌面载体自检）。它造一份「有 `style:polished`、无标记、`size:1.3`」的
+旧存档，期望得到 `style=simple` 且 `size` 仍为 `1.3`。实测输出：
+
+```text
+HF-MIG style=simple size=1.3 volume=0.25
+HF-MIG verdict=PASS
+```
+
+> 顺带修掉一个隐患：自检原先跑在**默认浏览器 profile** 上，而桌面外壳与 preview 都是
+> `file://` 源、**共用同一份 localStorage** —— 自检里的 `setArt("")` 会清掉用户真实存的
+> 角色图。现在自检统一加 `--user-data-dir=<临时目录>`，跑完即删，**测试不碰用户设置**。
 
 ### 6.4 部件级动画（换角色时按这张表挂）
 
@@ -256,7 +282,7 @@ renderCharacter():
 
 | 键 | 内容 |
 |---|---|
-| `localStorage['dsh-handsome-fish:v1']` | 设置 JSON：大小/音量/静音/**画风**/台词/吸附/结束音/隐藏/位置锚点 |
+| `localStorage['dsh-handsome-fish:v1']` | 设置 JSON：大小/音量/静音/**画风**/台词/吸附/结束音/隐藏/位置锚点 + `stylePinned`（用户是否显式选过画风，见 §6.3） |
 | `localStorage['dsh-handsome-fish:art']` | 自定义角色图的 base64 data URL（单独存，免得把设置文件撑爆） |
 
 ---

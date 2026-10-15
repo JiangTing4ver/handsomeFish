@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>存档迁移回归测试</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 400px;
+        height: 340px;
+        overflow: hidden;
+        background: #0d1520;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      「代码默认值 vs 用户显式选择」的回归测试（详见 docs/architecture.md §6.3）。
+
+      症状：writeStore() 会把 DEFAULTS 的每一项都写盘，于是用户只要开过一次菜单，
+      当时的默认画风就被钉死在 localStorage 里 —— 之后改代码默认值对已有存档完全无效，
+      表现是"改了默认画风，重启后还是旧角色"。
+
+      本页造一份**旧版存档**（有 style:polished、无 stylePinned 标记，另带 size=1.3 / volume=0.25）：
+        期望 → 画风被迁移成当前代码默认（simple），而 size / volume 原样保留。
+      由 scripts/selftest-desktop.mjs 在**独立 --user-data-dir** 下运行，不会碰真实存档。
+    -->
+    <script>
+      localStorage.setItem(
+        "dsh-handsome-fish:v1",
+        JSON.stringify({ style: "polished", size: 1.3, volume: 0.25 }),
+      );
+      window.__PREVIEW_CTX__ = {
+        on() {
+          return () => {};
+        },
+        inject(_n, cb) {
+          void cb;
+          return () => {};
+        },
+      };
+      window.__ModuleLoader__ = {
+        load(entry) {
+          try {
+            const m = entry.factory(function () {
+              throw new Error("no platform module");
+            });
+            m.apply(window.__PREVIEW_CTX__);
+          } catch (e) {
+            console.log("HF-MIG FAIL apply: " + e.message);
+          }
+        },
+      };
+    </script>
+    <script src="../../lib/client.js"></script>
+    <script>
+      setTimeout(() => {
+        const api = window.__HANDSOME_FISH__;
+        const svg = document.querySelector(".hf-svg");
+        const style = !svg
+          ? "none"
+          : svg.classList.contains("is-style-simple")
+            ? "simple"
+            : svg.classList.contains("is-style-polished")
+              ? "polished"
+              : "?";
+        const size = api ? api.state.size : "?";
+        const volume = api ? api.state.volume : "?";
+        console.log(`HF-MIG style=${style} size=${size} volume=${volume}`);
+        console.log(
+          "HF-MIG verdict=" +
+            (style === "simple" && size === 1.3 && volume === 0.25 ? "PASS" : "FAIL"),
+        );
+      }, 400);
+    </script>
+  </body>
+</html>

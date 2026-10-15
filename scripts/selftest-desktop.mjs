@@ -75,17 +75,25 @@ if (!browser) {
 
 const logPath = join(tmpdir(), `hf-selftest-${Date.now()}.log`);
 const shotPath = join(tmpdir(), `hf-selftest-${Date.now()}.png`);
+/**
+ * 每次用**独立的浏览器 profile**：桌面外壳与 preview 都是 file:// 源、共用同一份
+ * localStorage，自检里 setArt("") 会清掉真实存档 —— 测试不该动用户的设置。
+ */
+const profileDir = join(tmpdir(), `hf-selftest-profile-${Date.now()}`);
+
+const MIGRATION_PAGE =
+  "file:///" + join(ROOT, "scripts", "fixtures", "store-migration-test.html").replace(/\\/g, "/");
 
 console.log(`浏览器: ${browser}`);
 console.log(`页面:   ${PAGE}\n`);
 
 /**
- * 跑一次 Chrome 并取回 HF-SELFTEST 行。
+ * 跑一次 Chrome 并取回匹配前缀的行。
  * 为什么要容忍重试：headless Chrome 多实例并发时会偶发地什么都不输出
  * （实测过一次：同时还在跑生成对比图的 Chrome，自检那次抓到 0 行而误报失败）。
  * 验证工具自己不可靠是最糟的情况，所以只在两次都空时才判失败。
  */
-function runChrome(fd) {
+function runChrome(fd, page) {
   try {
     /* stdio 的 stderr 直接接到文件描述符，不建管道 —— 受限沙箱里带管道的 stdio 会 EPERM */
     spawnSync(
@@ -94,47 +102,57 @@ function runChrome(fd) {
         "--headless=new",
         "--disable-gpu",
         "--no-sandbox",
+        "--hide-scrollbars",
+        `--user-data-dir=${profileDir}`,
         "--window-size=900,600",
         "--virtual-time-budget=3000",
         "--enable-logging=stderr",
         "--v=0",
         `--screenshot=${shotPath}`,
-        PAGE,
+        page,
       ],
       { stdio: ["ignore", fd, fd], timeout: 90_000 },
     );
   } catch {
-    /* 超时/启动失败都交给下面的判断 */
+    /* 超时/启动失败都交给调用方判断 */
   }
 }
 
-function readResult() {
+function readLines(prefix) {
   return readFileSync(logPath, "utf8")
     .split(/\r?\n/)
-    .filter((l) => l.includes("HF-SELFTEST"))
-    .map((l) => l.slice(l.indexOf("HF-SELFTEST")).replace(/", source:.*$/, ""));
+    .filter((l) => l.includes(prefix))
+    .map((l) => l.slice(l.indexOf(prefix)).replace(/", source:.*$/, ""));
 }
 
-let lines = [];
-let raw = "";
-for (let attempt = 1; attempt <= 2; attempt++) {
-  rmSync(logPath, { force: true });
-  const fd = openSync(logPath, "w");
-  try {
-    runChrome(fd);
-  } finally {
-    closeSync(fd);
+/** 带一次重试地跑一个页面，返回它打印的标记行 */
+function runPageWithRetry(page, prefix) {
+  let out = [];
+  let raw = "";
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    rmSync(logPath, { force: true });
+    const fd = openSync(logPath, "w");
+    try {
+      runChrome(fd, page);
+    } finally {
+      closeSync(fd);
+    }
+    raw = readFileSync(logPath, "utf8");
+    out = readLines(prefix);
+    if (out.length > 0) break;
+    if (attempt === 1) console.log("(第一次没抓到输出，重试一次…)\n");
   }
-  raw = readFileSync(logPath, "utf8");
-  lines = readResult();
-  if (lines.length > 0) break;
-  if (attempt === 1) console.log("(第一次没抓到输出，重试一次…)\n");
+  return { lines: out, raw };
 }
+
 let status = 1;
 
+/* ---------- ① 桌面载体自检 ---------- */
+const main = runPageWithRetry(PAGE, "HF-SELFTEST");
+const lines = main.lines;
 if (lines.length === 0) {
   console.error("没抓到 HF-SELFTEST —— 页面可能没加载起来。日志尾部：");
-  console.error(raw.split(/\r?\n/).slice(-15).join("\n"));
+  console.error(main.raw.split(/\r?\n/).slice(-15).join("\n"));
 } else {
   for (const l of lines) console.log(l.replace(/^HF-SELFTEST\| /, "  ").replace(/^HF-SELFTEST /, ">> "));
   status = lines.some((l) => l.startsWith("HF-SELFTEST OK")) ? 0 : 1;
@@ -142,6 +160,20 @@ if (lines.length === 0) {
   console.log(status === 0 ? "桌面载体自检通过。" : "桌面载体自检失败。");
 }
 
+/* ---------- ② 存档迁移回归测试（代码默认值 vs 用户显式选择）---------- */
+const mig = runPageWithRetry(MIGRATION_PAGE, "HF-MIG");
+console.log("");
+if (mig.lines.length === 0) {
+  console.error("没抓到 HF-MIG —— 迁移测试页没加载起来。");
+  status = 1;
+} else {
+  for (const l of mig.lines) console.log("  " + l);
+  const ok = mig.lines.some((l) => l.endsWith("verdict=PASS"));
+  console.log(ok ? "存档迁移测试通过。" : "存档迁移测试失败。");
+  if (!ok) status = 1;
+}
+
 rmSync(logPath, { force: true });
 rmSync(shotPath, { force: true });
+rmSync(profileDir, { recursive: true, force: true });
 process.exit(status);
