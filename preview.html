@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>handsomeFish 预览 / 调试台</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+        background: radial-gradient(1200px 600px at 20% -10%, #16233a 0%, #0b1220 55%, #070b13 100%);
+        color: #dbe7f3;
+      }
+      /* 模拟 DSH 页面骨架，用来检查挂件与真实界面的对比、层级和遮挡 */
+      .fake-shell {
+        display: grid;
+        grid-template-columns: 232px 1fr;
+        height: 100vh;
+      }
+      .fake-side {
+        border-right: 1px solid rgba(126, 230, 255, 0.12);
+        background: rgba(12, 19, 32, 0.6);
+        padding: 18px 14px;
+      }
+      .fake-side h1 {
+        margin: 0 0 14px;
+        font-size: 13px;
+        letter-spacing: 0.4px;
+        color: #9fe8ff;
+      }
+      .fake-side p {
+        margin: 8px 0;
+        font-size: 12px;
+        color: #8ea3b8;
+      }
+      .fake-main {
+        padding: 26px 30px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .fake-card {
+        border: 1px solid rgba(126, 230, 255, 0.16);
+        background: rgba(18, 28, 44, 0.6);
+        border-radius: 14px;
+        padding: 14px 16px;
+        font-size: 13px;
+        line-height: 1.7;
+      }
+      .fake-card h2 {
+        margin: 0 0 8px;
+        font-size: 14px;
+        color: #e9f2fb;
+      }
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 6px;
+      }
+      .toolbar button {
+        font: inherit;
+        font-size: 12px;
+        padding: 7px 12px;
+        border-radius: 9px;
+        cursor: pointer;
+        color: #dcebf8;
+        background: rgba(38, 54, 78, 0.85);
+        border: 1px solid rgba(126, 230, 255, 0.22);
+      }
+      .toolbar button:hover {
+        background: rgba(58, 82, 116, 0.95);
+      }
+      .hint {
+        font-size: 12px;
+        color: #8ea3b8;
+        margin-top: 10px;
+      }
+      code {
+        color: #9fe8ff;
+        background: rgba(126, 230, 255, 0.1);
+        padding: 1px 5px;
+        border-radius: 5px;
+      }
+      /*
+       * ?bare=1：隐藏调试用的假界面，只留深色背景，用来出干净的展示图。
+       */
+      body.preview-bare .fake-shell {
+        display: none;
+      }
+      body.preview-bare {
+        background: radial-gradient(1100px 620px at 18% -12%, #17243c 0%, #0c1421 56%, #070b13 100%);
+      }
+
+      /*
+       * 截图核对用（?freeze=1）：headless Chrome 的 virtual-time 会把 CSS 过渡
+       * 冻结在半路，导致截图里气泡半透明、颜色偏淡——那是假象，不是样式 bug。
+       * 打开 freeze 后所有动效都停在最终静止帧，截图才是确定性的。
+       */
+      body.preview-freeze *,
+      body.preview-freeze *::before,
+      body.preview-freeze *::after {
+        transition: none !important;
+        animation: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="fake-shell">
+      <aside class="fake-side">
+        <h1>DSH（模拟界面）</h1>
+        <p>会话列表占位</p>
+        <p>会话列表占位</p>
+        <p>会话列表占位</p>
+        <p style="margin-top: 26px">右下角应该是小蓝</p>
+      </aside>
+      <main class="fake-main">
+        <div class="fake-card">
+          <h2>预览 / 调试台</h2>
+          这个页面不依赖 DSH 宿主，直接以「经典脚本」方式加载
+          <code>lib/client.js</code>，并给它一个最小的 <code>__ModuleLoader__</code> 与
+          <code>ctx</code> 桩，用来在浏览器里肉眼检查角色外观、动画与交互。
+          <div class="toolbar">
+            <button data-t="click">模拟点击</button>
+            <button data-t="say">说一句话</button>
+            <button data-t="chime">任务结束音</button>
+            <button data-t="ding">提醒音</button>
+            <button data-t="pop">气泡音</button>
+            <button data-t="menu">打开菜单</button>
+            <button data-t="big">放大</button>
+            <button data-t="small">缩小</button>
+            <button data-t="hide">隐藏</button>
+            <button data-t="show">唤出</button>
+            <button data-t="reset">重置</button>
+          </div>
+          <div class="hint">
+            也可以在右下角那个小蓝身上：左键拖动（松手吸附到最近一侧）、左键点一下、<b>右键打开设置菜单</b>。
+          </div>
+        </div>
+        <div class="fake-card">
+          <h2>调试入口</h2>
+          <code>window.__HANDSOME_FISH__</code> 暴露了
+          <code>state</code> / <code>say()</code> / <code>hide()</code> / <code>show()</code> /
+          <code>menu()</code> / <code>sound(name)</code> / <code>reset()</code> / <code>destroy()</code>。
+          偏好存在 <code>localStorage["dsh-handsome-fish:v1"]</code>。
+        </div>
+      </main>
+    </div>
+
+    <script>
+      /* -------- #custom：预置一张 data URL 角色图，用来验证「上传角色图」这条链路 -------- */
+      if (location.hash === "#custom") {
+        const demo =
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">' +
+          '<circle cx="60" cy="60" r="52" fill="#7ee6ff" opacity="0.9"/>' +
+          '<circle cx="42" cy="52" r="7" fill="#0d1420"/><circle cx="78" cy="52" r="7" fill="#0d1420"/>' +
+          '<path d="M38 78 Q60 96 82 78" stroke="#0d1420" stroke-width="6" fill="none" stroke-linecap="round"/>' +
+          "</svg>";
+        localStorage.setItem(
+          "dsh-handsome-fish:art",
+          "data:image/svg+xml;charset=utf-8," + encodeURIComponent(demo),
+        );
+      } else {
+        /* 其它状态下清掉，保证截图反映的是默认形象而不是上一次的残留 */
+        localStorage.removeItem("dsh-handsome-fish:art");
+      }
+
+      /* ------------------ 最小宿主桩：把 factory 直接物化并 apply ------------------ */
+      window.__PREVIEW_CTX__ = {
+        on() {
+          return () => {};
+        },
+        inject(_names, cb) {
+          void cb;
+          return () => {};
+        },
+      };
+      window.__ModuleLoader__ = {
+        load(entry) {
+          try {
+            const mod = entry.factory(function require(name) {
+              throw new Error("preview: no platform module available: " + name);
+            });
+            mod.apply(window.__PREVIEW_CTX__);
+            window.__PREVIEW_LOADED__ = entry.id;
+          } catch (error) {
+            console.error("[preview] load failed:", error);
+            document.title = "预览加载失败：" + error.message;
+          }
+        },
+      };
+    </script>
+    <script src="lib/client.js"></script>
+    <script>
+      /* ---------------------------- 工具栏接线 ---------------------------- */
+      if (location.search.includes("freeze")) document.body.classList.add("preview-freeze");
+      if (location.search.includes("bare")) document.body.classList.add("preview-bare");
+
+      /* --------- ?debug=1：几何读数浮层，用真实测量代替心算定位 --------- */
+      if (location.search.includes("debug")) {
+        const box = document.createElement("pre");
+        box.style.cssText =
+          "position:fixed;left:8px;bottom:8px;z-index:2147483647;margin:0;padding:8px 10px;" +
+          "background:rgba(0,0,0,.86);color:#9fe8ff;font:11px/1.5 Consolas,monospace;" +
+          "border:1px solid rgba(159,232,255,.35);border-radius:8px;white-space:pre;";
+        document.body.appendChild(box);
+        const rect = (sel) => {
+          const el = document.querySelector(sel);
+          if (!el) return "n/a";
+          const r = el.getBoundingClientRect();
+          return `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}`;
+        };
+        setInterval(() => {
+          const say = document.querySelector(".dsh-handsome-fish-say");
+          const cs = say ? getComputedStyle(say) : null;
+          box.textContent = [
+            `viewport ${innerWidth}x${innerHeight}`,
+            `state    ${JSON.stringify(window.__HANDSOME_FISH__ && window.__HANDSOME_FISH__.state)}`,
+            `layer    ${rect("#dsh-handsome-fish")}`,
+            `stage    ${rect(".dsh-handsome-fish-stage")}`,
+            `fish     ${rect(".dsh-handsome-fish-fish")}`,
+            `say      ${rect(".dsh-handsome-fish-say")}`,
+            `say.tail ${say && say.getAttribute("data-tail")}  left=${cs && cs.left} right=${cs && cs.right} bottom=${cs && cs.bottom}`,
+            `menu     ${rect(".dsh-handsome-fish-menu")}`,
+            `tab      ${rect(".dsh-handsome-fish-tab")}`,
+          ].join("\n");
+        }, 200);
+      }
+
+      document.querySelector(".toolbar").addEventListener("click", (ev) => {
+        const btn = ev.target.closest("button");
+        if (!btn) return;
+        const api = window.__HANDSOME_FISH__;
+        if (!api) {
+          console.warn("[preview] 挂件未加载");
+          return;
+        }
+        const t = btn.getAttribute("data-t");
+        const fish = document.querySelector(".dsh-handsome-fish-fish");
+        if (t === "click" && fish) {
+          fish.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, clientX: 300, clientY: 300 }));
+          fish.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, button: 0, clientX: 300, clientY: 300 }));
+        } else if (t === "say") api.say("这是预览台词，用来检查气泡排版与位置。");
+        else if (t === "chime") api.sound("chime");
+        else if (t === "ding") api.sound("ding");
+        else if (t === "pop") api.sound("pop");
+        else if (t === "menu") api.menu();
+        else if (t === "big") {
+          api.state.size = Math.min(1.6, api.state.size + 0.2);
+          window.dispatchEvent(new Event("resize"));
+        } else if (t === "small") {
+          api.state.size = Math.max(0.6, api.state.size - 0.2);
+          window.dispatchEvent(new Event("resize"));
+        } else if (t === "hide") api.hide();
+        else if (t === "show") api.show();
+        else if (t === "reset") api.reset();
+      });
+      /* resize 只改了 state.size，还需要走一次 applyPosition：用一个假 resize 触发 */
+      window.addEventListener("resize", () => {
+        setTimeout(() => {
+          const api = window.__HANDSOME_FISH__;
+          if (api) api.say;
+        }, 0);
+      });
+
+      /* --------- 用 hash 直接进入某个状态，方便截图核对（#menu / #say / #left / #big） --------- */
+      setTimeout(() => {
+        const api = window.__HANDSOME_FISH__;
+        if (!api) return;
+        const hash = location.hash.replace("#", "");
+        if (!hash) return;
+        if (hash === "menu") api.menu();
+        else if (hash === "say") api.say("这轮搞定啦！小蓝在右下角，右键可以调设置。");
+        else if (hash === "left") {
+          api.state.side = "left";
+          api.state.x = 40;
+          api.state.y = 40;
+          window.dispatchEvent(new Event("resize"));
+        } else if (hash === "big") {
+          api.state.size = 1.5;
+          window.dispatchEvent(new Event("resize"));
+        }
+      }, 250);
+    </script>
+  </body>
+</html>
