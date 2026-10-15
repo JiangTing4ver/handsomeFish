@@ -150,6 +150,25 @@
         /* ignore */
       }
 
+      /* 作者原画：清单由 preload 用 Node 读出并注入（file:// 下 fetch 本地 json 会被拦），
+         基准路径相对本页（desktop/）。拿不到就退回内置 SVG。 */
+      try {
+        const art = window.handsomeFishArt;
+        if (art && typeof art.base === "string") window.__HANDSOME_FISH_ART_BASE__ = art.base;
+        if (art && art.manifest) window.__HANDSOME_FISH_ART_MANIFEST__ = art.manifest;
+      } catch (error) {
+        /* ignore */
+      }
+
+      /* ?svg=1 强制用内置 SVG —— 自检需要一条不受本地素材影响的确定性路径 */
+      try {
+        if (new URLSearchParams(location.search).get("svg") === "1") {
+          window.__HANDSOME_FISH_FORCE_SVG__ = true;
+        }
+      } catch (error) {
+        /* ignore */
+      }
+
       /* ---------------------------------------------------------------------
          2. 最小宿主桩：和 DSH 宿主一样，把 factory 物化后调用 apply(ctx)
          --------------------------------------------------------------------- */

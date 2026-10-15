@@ -1,0 +1,11 @@
+{
+  "note": "清单模板：复制成 assets/art-manifest.json 后按自己的图改名。文件名对应 assets/ 里的透明 PNG。",
+  "default": "cand-mature-2.png",
+  "states": {
+    "greet": "cand-mature-5.png",
+    "click": "cand-mature-8.png",
+    "drag": "cand-mature-3.png",
+    "drop": "cand-mature-7.png",
+    "turnEnd": "cand-mature-4.png"
+  }
+}

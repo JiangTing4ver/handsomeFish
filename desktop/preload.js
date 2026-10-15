@@ -9,6 +9,8 @@
  * contextIsolation: true，只暴露一个函数与一份只读配置，页面拿不到 Node 能力。
  */
 const { contextBridge, ipcRenderer } = require("electron");
+const { readFileSync } = require("node:fs");
+const { join } = require("node:path");
 
 const CHANNEL = "handsome-fish:bridge";
 
@@ -23,6 +25,30 @@ contextBridge.exposeInMainWorld("handsomeFishConfig", {
   /** 绝对地址，例如 http://127.0.0.1:43120/dsh-handsome-fish/events.json；取不到时为 "" */
   eventsUrl,
   platform: process.platform,
+});
+
+/* ---------------------------------------------------------------------------
+   作者原画清单
+   ——桌面窗是 file:// 源，**fetch 本地 json 会被 Chromium 拦掉**，所以这里用 Node
+     直接把清单读出来交给页面（和"轮次轮询放在主进程"是同一个原因）。
+     读不到是正常情况：全新克隆里 assets/ 不存在，client 会退回内置 SVG。
+   --------------------------------------------------------------------------- */
+function loadArtManifest() {
+  try {
+    const p = join(__dirname, "..", "assets", "art-manifest.json");
+    const m = JSON.parse(readFileSync(p, "utf8"));
+    if (m && typeof m === "object" && m.states && typeof m.states === "object") return m;
+  } catch (error) {
+    /* 没有清单/清单坏了都退回内置 SVG */
+  }
+  return null;
+}
+
+contextBridge.exposeInMainWorld("handsomeFishArt", {
+  /** 原画目录（相对渲染页 desktop/） */
+  base: "../assets/",
+  /** { default, states } 或 null */
+  manifest: loadArtManifest(),
 });
 
 contextBridge.exposeInMainWorld("handsomeFishBridge", (msg) => {

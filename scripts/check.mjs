@@ -199,12 +199,99 @@ check("host 半侧：路由挂在 inject(['webServer']) 的作用域里", () => 
     hostHarness.injects.some((n) => n.includes("webServer")),
     "没有用 ctx.inject(['webServer'], …) 局部等待服务",
   );
-  const route = hostHarness.routes[0];
-  assert(route, "没有注册任何路由");
-  assert(route.kind === "exact", `kind 应为 exact，实际 ${route.kind}`);
-  assert(route.path === "/dsh-handsome-fish/events.json", `路径不对：${route.path}`);
+  const route = hostHarness.routes.find((r) => r.path === "/dsh-handsome-fish/events.json");
+  assert(route, "没有注册事件路由");
+  assert(route.kind === "exact", `事件路由 kind 应为 exact，实际 ${route.kind}`);
   assert(typeof route.handler === "function", "handler 不是函数");
-  return `${hostHarness.effects[0] || "route"}`;
+  const art = hostHarness.routes.find((r) => r.path === "/dsh-handsome-fish/art");
+  assert(art, "没有注册原画路由");
+  assert(art.kind === "prefix", `原画路由必须用前缀匹配，实际 ${art.kind}`);
+  return `${hostHarness.effects[0] || "route"}；路由 ${hostHarness.routes.length} 条`;
+});
+
+check("本地原画清单：引用的图都在（有 assets/ 时才检查）", () => {
+  const dir = join(ROOT, "assets");
+  const manifestPath = join(dir, "art-manifest.json");
+  if (!existsSync(manifestPath)) {
+    return "本地没有 assets/art-manifest.json（全新克隆的正常状态），跳过";
+  }
+  const m = readJson(manifestPath);
+  assert(typeof m.default === "string" && m.default, "清单缺少 default");
+  const states = m.states && typeof m.states === "object" ? m.states : {};
+  const names = [m.default].concat(Object.keys(states).map((k) => states[k]));
+  const missing = names.filter((n) => typeof n !== "string" || !n || !existsSync(join(dir, n)));
+  assert(missing.length === 0, `清单引用了不存在的图：${missing.join(", ")}`);
+  const notPng = [m.default]
+    .concat(Object.values(states))
+    .filter((n) => !/\.png$/i.test(n));
+  assert(notPng.length === 0, `清单里的图应是 PNG（透明底），这几个不是：${notPng.join(", ")}`);
+  return `default=${m.default}；状态 ${Object.keys(states).length} 个，引用的图全部存在`;
+});
+
+/* 原画路由的端到端验证：真发一张图、真拒一次目录穿越。
+   把素材目录指到 scripts/fixtures/，这样不依赖（不入库的）assets/ 是否存在。 */
+await checkAsync("host 半侧：原画路由（发图 / 404 / 拒穿越 / 拒非图）", async () => {
+  process.env.HF_ASSETS_DIR = join(ROOT, "scripts", "fixtures");
+  const art = hostHarness.routes.find((r) => r.path === "/dsh-handsome-fish/art");
+  assert(art, "没有注册原画路由");
+
+  const { Writable } = await import("node:stream");
+  const call = (url, method = "GET") =>
+    new Promise((resolve, reject) => {
+      const chunks = [];
+      const res = new Writable({
+        write(chunk, _enc, cb) {
+          chunks.push(chunk);
+          cb();
+        },
+      });
+      res.statusCode = 0;
+      res.headers = {};
+      res.writeHead = (code, headers) => {
+        res.statusCode = code;
+        Object.assign(res.headers, headers || {});
+        return res;
+      };
+      res.on("finish", () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
+      res.on("error", reject);
+      art.handler({ method, url }, res);
+    });
+
+  /* ① 真发一张已入库的自检素材 */
+  const png = await call("/dsh-handsome-fish/art/art-4x3.png");
+  const onDisk = readFileSync(join(ROOT, "scripts", "fixtures", "art-4x3.png"));
+  assert(png.status === 200, `发图应为 200，实际 ${png.status}`);
+  assert(png.headers["Content-Type"] === "image/png", `Content-Type 不对：${png.headers["Content-Type"]}`);
+  assert(png.body.length === onDisk.length, `字节数不一致：${png.body.length} vs ${onDisk.length}`);
+  assert(png.body.equals(onDisk), "发出去的字节与磁盘上的文件不一致");
+
+  /* ② 不存在 → 404 */
+  const missing = await call("/dsh-handsome-fish/art/does-not-exist.png");
+  assert(missing.status === 404, `不存在的文件应为 404，实际 ${missing.status}`);
+
+  /* ③ 目录穿越 → 必须被拒（package.json 确实存在，所以一旦漏掉这条就会真的泄露） */
+  for (const evil of [
+    "/dsh-handsome-fish/art/..%2Fpackage.json",
+    "/dsh-handsome-fish/art/%2e%2e%2f%2e%2e%2fpackage.json",
+    "/dsh-handsome-fish/art/....//package.json",
+  ]) {
+    const r = await call(evil);
+    assert(r.status !== 200, `目录穿越没被拦住：${evil} → ${r.status}`);
+    assert(!r.body.includes("dsh-handsome-fish"), `穿越请求返回了仓库内容：${evil}`);
+  }
+
+  /* ④ 非图片类型 → 415（.json 清单是唯一的例外，它得能发出去） */
+  const txt = await call("/dsh-handsome-fish/art/art-source.html");
+  assert(txt.status === 415, `非图片应为 415，实际 ${txt.status}`);
+  const manifest = await call("/dsh-handsome-fish/art/art-manifest.example.json");
+  assert(manifest.status === 200, `清单应能作为 json 发出，实际 ${manifest.status}`);
+
+  /* ⑤ 非 GET/HEAD → 405 */
+  const post = await call("/dsh-handsome-fish/art/art-4x3.png", "POST");
+  assert(post.status === 405, `POST 应为 405，实际 ${post.status}`);
+
+  delete process.env.HF_ASSETS_DIR;
+  return "发图 200/字节一致；404、415、405、穿越全部拒绝";
 });
 
 await checkAsync("host 半侧：turn/end → 计数递增（含合并与静默原因）", async () => {

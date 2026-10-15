@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>作者原画清单回归测试</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 420px;
+        height: 360px;
+        overflow: hidden;
+        background: #0d1520;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      「作者原画清单」的回归测试（详见 docs/architecture.md §6.8）。
+
+      要证明三件事：
+        1. 有清单时，角色用**图片**而不是内置 SVG；
+        2. 换状态时**换的是图片**（src 变了）——这就是"按状态用作者表情原画"；
+        3. 换图是**原位替换**，不重建角色（重建会打断容器级动画）。
+
+      两个素材都用**已入库的自检图**（art-4x3.png / art-alt-4x3.png），
+      所以本测试不依赖（不入库的）assets/ 是否存在，任何克隆里都能跑。
+      真实使用时的清单来自 assets/art-manifest.json：
+        · DSH 页面 → 主机侧前缀路由
+        · 桌面外壳 → preload 用 Node 读出后注入（file:// 下 fetch 本地 json 会被拦）
+    -->
+    <script>
+      window.__HANDSOME_FISH_ART_BASE__ = "./";
+      window.__HANDSOME_FISH_ART_MANIFEST__ = {
+        default: "art-4x3.png",
+        states: { click: "art-alt-4x3.png" },
+      };
+      window.__PREVIEW_CTX__ = {
+        on() {
+          return () => {};
+        },
+        inject(_n, cb) {
+          void cb;
+          return () => {};
+        },
+      };
+      window.__ModuleLoader__ = {
+        load(entry) {
+          try {
+            const m = entry.factory(function () {
+              throw new Error("no platform module");
+            });
+            m.apply(window.__PREVIEW_CTX__);
+          } catch (e) {
+            console.log("HF-ART FAIL apply: " + e.message);
+          }
+        },
+      };
+    </script>
+    <script src="../../lib/client.js"></script>
+    <script>
+      setTimeout(async () => {
+        const api = window.__HANDSOME_FISH__;
+        if (!api) {
+          console.log("HF-ART verdict=FAIL (client 没加载)");
+          return;
+        }
+        const wrap0 = document.querySelector(".hf-art");
+        const img0 = document.querySelector(".hf-img");
+        const src0 = img0 ? img0.getAttribute("src") : "";
+        const svg = document.querySelector(".hf-svg");
+
+        api.express("click");
+        const wrap1 = document.querySelector(".hf-art");
+        const img1 = document.querySelector(".hf-img");
+        const src1 = img1 ? img1.getAttribute("src") : "";
+
+        /* 等图片真的解码出来，否则"换过去了"只是字符串层面的结论 */
+        let decoded = false;
+        try {
+          await img1.decode();
+          decoded = img1.naturalWidth > 0;
+        } catch (e) {
+          decoded = false;
+        }
+
+        console.log(
+          `HF-ART default=${src0} click=${src1} sameWrap=${wrap0 === wrap1} decoded=${decoded} builtinSvg=${!!svg}`,
+        );
+        console.log(
+          "HF-ART verdict=" +
+            (/art-4x3\.png$/.test(src0) &&
+            /art-alt-4x3\.png$/.test(src1) &&
+            wrap0 === wrap1 &&
+            decoded &&
+            !svg
+              ? "PASS"
+              : "FAIL"),
+        );
+      }, 600);
+    </script>
+  </body>
+</html>
