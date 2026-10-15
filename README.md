@@ -3,8 +3,11 @@
 > 住在 DeepSeek Harness 界面角落的**小蓝**（《小绿和小蓝》· 机器人篇的程序员/发明家）：
 > 程序化 SVG 角色 + 部件级待机动画 + 点击互动 + 拖拽边缘吸附 + 随机台词气泡 + Web Audio 程序化合成音效。
 > 标准 DSH bundle 插件，`dsh plugin` 一键安装，**零素材依赖、零网络请求**。
+> 角色形象来自笛子Ocarina 的《小绿和小蓝》。
 >
-> 角色形象来自笛子Ocarina 的《小绿和小蓝》。设定考证、图源评估与出图方向见 [docs/xiaolan.md](docs/xiaolan.md)。
+> **📚 文档索引**：[技术文档](docs/architecture.md)（架构 / 平台 API / 数据流 / 验证体系 / 踩坑清单）·
+> [角色考证](docs/xiaolan.md) · [素材规格](docs/asset-checklist.md) ·
+> [AI 生图提示词](docs/character-spec.md) · [桌面外壳](desktop/README.md)
 
 ![小蓝默认形象](docs/shots/default.png)
 
@@ -17,9 +20,11 @@
 | ✅ 是 | **DSH 界面内挂件**：往 Web GUI 页面里注入一个 `position: fixed` 的层，贴在视口角落，跟着 DSH 窗口走 |
 | ❌ 不是 | 独立的桌面级窗口。它不会飘在别的程序上面；DSH 窗口最小化它就看不见了，页面 F5 就重来 |
 | ✅ 也是 | 一个可复制的**插件工程模板**：host/client 双半侧拆分、经典脚本客户端 bundle、只读路由 + 前端轮询、内置自检与预览调试台 |
+| 🖥️ 另有 | **独立桌面外壳** [desktop/](desktop/README.md)：另一个 Electron 进程，加载**同一个** `lib/client.js`，整块透明置顶窗口 + 点击穿透，角色可放在桌面任意位置。代码与自检（15 项）已就绪，窗口运行时待实测 |
 
-想升级成「飘在整个桌面上、可点击穿透」的真·桌面挂件：角色本体不用改，OS 级载体的骨架
-（透明置顶窗口 + 点击穿透桥 + 机读自检）已经在 [desktop/](desktop/README.md) 里就绪。
+两个载体共用同一份角色与交互代码，因此行为完全一致；轮次事件在两边走两条不同的通道
+（页面同源轮询 / 桌面外壳 Node 侧轮询 + IPC）—— 数据流图见
+[技术文档 §0](docs/architecture.md)。
 
 ---
 
@@ -171,20 +176,24 @@ handsomeFish/
 │   ├── index.js            # host 半侧：订阅 session/event + 注册只读路由
 │   └── client.js           # client 半侧：挂件本体（经典脚本注册，宿主原样提供）
 ├── scripts/
-│   ├── check.mjs           # 静态 + 逻辑自检（15 项）：插件规范、host 端到端、轮次监视器
+│   ├── check.mjs           # 静态 + 逻辑自检（16 项）：插件规范、host 端到端、轮次监视器、文档链接
 │   ├── selftest-desktop.mjs # 桌面载体自检（15 项，headless 浏览器即可跑，不用装 Electron）
 │   └── make-pet-image.mjs  # 把普通插画转成透明宠物图（裁切 + 柔边圆蒙版，无需图像库）
 ├── preview.html            # 独立预览 / 调试台：不依赖 DSH 宿主即可看角色、截图、量几何
-├── assets/                 # 角色图（由 make-pet-image.mjs 从素材生成）
-├── _refs/                  # 素材参考图（搜集来的插画，仅作设计参考）
+├── assets/                 # 角色图试验品（由 make-pet-image.mjs 从素材生成，非默认形象）
+├── _refs/                  # 素材参考图（搜集来的插画，仅作设计参考，不入库）
 ├── desktop/                # 真·桌面级外壳（Electron）：透明置顶窗口 + 点击穿透 + 轮次通道
 │   ├── main.js             #   主进程：窗口/命中测试/轮次监视/日志落盘
 │   ├── preload.js          #   桥、轮次订阅、配置注入
 │   ├── turn-watch.js       #   轮次监视器（纯 Node，可单测）
-│   └── renderer.html       #   OS 级载体页（加载同一个 lib/client.js，并接入用户素材）
+│   └── renderer.html       #   OS 级载体页（加载同一个 lib/client.js）
 ├── docs/
-│   └── character-spec.md   # 换成自己角色的素材规格 + AI 生图提示词
-└── _shots/                 # 本地验证截图（headless Chrome 产出，可删）
+│   ├── architecture.md     # 【技术文档】架构、平台 API、数据流、验证体系、踩坑清单
+│   ├── xiaolan.md          # 目标角色考证（设定、图源陷阱、三条产出路线）
+│   ├── asset-checklist.md  # 素材规格（4:3 / 透明度 / 体积 / 分辨率）与验收清单
+│   ├── character-spec.md   # AI 生图提示词（三套风格 + 负面词）与抠图后处理
+│   └── shots/              # 展示图与验证截图
+└── _shots/                 # 本地临时截图（headless Chrome 产出，可删，不入库）
 ```
 
 ---
@@ -347,7 +356,7 @@ dsh plugin --profile desktop remove dsh-handsome-fish
 | **host 半侧在活的宿主里生效** | `curl.exe -s http://127.0.0.1:43120/dsh-handsome-fish/events.json` | `200` + 我的确切载荷 `{"ok":true,"seq":1,...}` 与响应头；`seq` 随对话轮次从 1 涨到 2 |
 | **client 半侧在活的 GUI 里渲染** | 用户截图（小蓝 + 台词气泡 + 设置菜单，且音量/大小已被用户改动） | 角色、气泡、菜单、交互、设置持久化全部可见 |
 | **插件热装载（无需重启）** | 装完不重启，直接探测路由 | host 路由与 client 挂件都已生效；同法反证出 host **代码**改动不热生效 |
-| **OS 级载体页 + 点击穿透桥** | `desktop/renderer.html?selftest=1` 经 headless Chrome 抓 stderr | `HF-SELFTEST OK pass=11 fail=0`（含页面透明 `rgba(0,0,0,0)`、hover 上报双向、隐藏气泡不抢鼠标） |
+| **OS 级载体页 + 点击穿透桥** | `desktop/renderer.html?selftest=1` 经 headless Chrome 抓 stderr | `HF-SELFTEST OK pass=15 fail=0`（含页面透明 `rgba(0,0,0,0)`、hover 上报双向、两条角色路径、隐藏气泡不抢鼠标、轮次事件触发反应） |
 
 ---
 
