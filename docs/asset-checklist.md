@@ -179,6 +179,19 @@
 
 2.2 的比例结论是从 CSS 与 DOM 结构推导的（`.hf-art` 是 `display:flex` + `align-items:flex-end`，
 `.hf-img` 只有 `max-width/max-height:100%` + `object-fit:contain`，舞台 224×168），
-**不是 headless 浏览器像素实测** —— Chrome 在 DSH 沙箱内无法启动（mojo 命名管道被拒绝，属已知边界）。
+**不是 headless 浏览器像素实测**。
 
-CSS 在这里没有歧义，但要 100% 坐实，可在非沙箱环境把 `_shots/` 下的截图流程拿来量一次图片显示框。
+> 🔧 **更正（2026-10-15）**：本节原本写着「Chrome 在 DSH 沙箱内无法启动（mojo 命名管道被拒绝）」
+> —— 该说法**不成立**。同一会话里 headless Chrome 被稳定调用了几十次，产出了
+> [../scripts/selftest-desktop.mjs](../scripts/selftest-desktop.mjs) 的全部自检结果与
+> [shots/](shots/) 下的全部截图（形式：`chrome --headless=new --disable-gpu --no-sandbox …`）。
+> 会卡住的是 **Electron 应用**（主进程停在 `app.whenReady()` 之前，见
+> [../desktop/README.md](../desktop/README.md)），两者不是一回事，别混为一谈。
+> 因此 2.2 完全有条件做像素实测，只是还没做。
+
+要 100% 坐实 2.2：把 `?art=` 分别指到一张 4:3 图和一张正方形图，在 headless Chrome 里量
+`.hf-img` 的 `getBoundingClientRect()`。现有自检框架（`selftest-desktop.mjs` 抓 stderr 的
+`HF-SELFTEST` 行）可以直接扩展出这条断言，不需要新工具。
+
+> 📌 另记一处代码与本文的差距：`scripts/make-pet-image.mjs` 目前产出的是**正方形 512×512**，
+> 与 2.2/2.3.1 要求的 4:3 不一致；用它出正式素材前需先给脚本加 4:3 支持。
