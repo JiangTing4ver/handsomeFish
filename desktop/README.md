@@ -142,36 +142,33 @@ npm start        # electron 已装好（44.7.2）；桌面上会出现角色，�
 角色就是里面手写的程序化 SVG **小蓝**（`xiaolanSVG()`，见 [../docs/xiaolan.md](../docs/xiaolan.md)）
 —— 零素材、零体积、部件级动画最全（呆毛/手臂/躯干/眨眼/灵感火花）。
 
-本地 `assets/` 下那些图是从参考素材转出来的**试验品，不入库**（`.gitignore` 里排除了，
-与 `_refs/` 同理 —— 都派生自第三方参考图），也不是默认形象。要临时用它，必须显式给 `?art=`：
+本地 `assets/` 是**试验品目录（不入库）**，用来放你自己转出来的角色图；它不是默认形象。
+要临时用一张图，必须显式给 `?art=`：
 
 ```powershell
-npm start -- --art=../assets/pet-11.png     # 本地试验品（全新克隆里没有这个目录）
+npm start -- --art=../scripts/fixtures/art-4x3.png   # 仓库自带的自检素材，随时可用
 ```
 
-仓库里**自带**的自检素材是 `scripts/fixtures/art-4x3.png`（我们自己画的 4:3 透明底小图），
-`selftest-desktop.mjs` 用它来覆盖"图片通道能解码 + `file://` 相对路径能解析"这两条。
+`scripts/fixtures/art-4x3.png` 是我们自己画的 4:3 透明底小图（1.17 KB），
+`selftest-desktop.mjs` 用它覆盖"图片通道能解码 + `file://` 相对路径能解析"这两条。
 
 > ⚠️ 别把某张图写死成默认：那会让桌面壳的角色与插件里的形象不一致。
-> 而且按 [../docs/xiaolan.md](../docs/xiaolan.md) 的考证，`assets/pet-xiaolv.png` 是
-> **机器人小绿**、`pet-baijin.png` 属于另一部作品 —— 都不是目标角色小蓝。
-> （正因如此它们只留在本地，没入库。）
 
 常规换角色（不用改代码）：右键 → **「换个角色图」**，存在 localStorage，优先级最高。
 
-把参考素材转成透明宠物图（试验用）：
+把参考素材转成透明宠物图（试验用，产物丢进 `assets/`）：
 
 ```powershell
 node scripts\make-pet-image.mjs "_refs\xiaolan\02_xiaolan_yuxiaolv.jpg" "assets\x.png" --focus "50% 26%"
 ```
 
-它用 headless Chrome 裁切 + 柔边圆形蒙版 + `--default-background-color=00000000`，
+它用 headless Chrome 裁切 + 柔边蒙版 + `--default-background-color=00000000`，
 直接产出带透明通道的 PNG，不需要任何图像库或抠图模型。
 
-![角色候选](../docs/shots/pet-candidates.png)
-
-上面这些是转换试验品。可复用的一条经验：**素材必须是"单人插画"** ——
-封面、群像、带标题文字的图裁成圆形后一定带进杂物和字（实测 02 / 04 / 16 就是这种，已删）。
+> 一条可复用的经验：**素材必须是"单人插画"** —— 封面、群像、带标题文字的图裁成圆形后
+> 一定带进杂物和字。之前用旧素材转出来的那几张试验品（`pet-xiaolv` 其实是**机器人小绿**、
+> `pet-baijin` 属于另一部作品，都不是目标角色小蓝）**已删除** —— 角色由内置 SVG 承担，
+> 不再需要这些不对的图。
 
 > 📌 **画布比例要用 4:3，不是正方形。** 舞台是 224×168（[../docs/asset-checklist.md](../docs/asset-checklist.md) 2.2），
 > 正方形图会被缩到 168×168，白白浪费 25% 宽度。
