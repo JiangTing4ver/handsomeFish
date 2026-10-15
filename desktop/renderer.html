@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <title>handsomeFish · 桌面载体</title>
+    <style>
+      /*
+       * 真·桌面级载体的关键差异：整页必须完全透明。
+       * 外壳（Electron / WebView2）会把整个工作区铺一块透明窗口盖在桌面上，
+       * 角色用 CSS 在窗口内自由移动 —— 所以「整个桌面四处放」是靠窗口透明 +
+       * 角色在窗口内定位实现的，不需要让窗口本身跟着跑。
+       * 这一层只要有底色，就会变成一块盖住整个桌面的板子。
+       */
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: transparent !important;
+        /* 桌面宠物不该被选中、不该有滚动条、不该触发浏览器手势缩放 */
+        user-select: none;
+        -webkit-user-select: none;
+        overscroll-behavior: none;
+        touch-action: none;
+      }
+      /* 自检输出（只在 ?selftest=1 时插入），方便用 --dump-dom 机读 */
+      #hf-selftest {
+        position: fixed;
+        left: 8px;
+        top: 8px;
+        z-index: 2147483647;
+        margin: 0;
+        padding: 10px 12px;
+        background: rgba(0, 0, 0, 0.88);
+        color: #9fe8ff;
+        font: 12px/1.6 Consolas, monospace;
+        border: 1px solid rgba(159, 232, 255, 0.4);
+        border-radius: 8px;
+        white-space: pre;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      ============================================================================
+      handsomeFish 的 OS 级载体页
+      ----------------------------------------------------------------------------
+      与 DSH 插件载体（lib/client.js 由宿主的 /plugins 路由提供）的区别只有两点：
+        1. 这里自己提供一个最小的 __ModuleLoader__ 与 ctx 桩，把 factory 直接物化；
+        2. 这里把 __HANDSOME_FISH_BRIDGE__ 接到外壳上，用于点击穿透与退出。
+      角色本体一行都不改 —— lib/client.js 是两个载体唯一的共同真相来源。
+      ============================================================================
+    -->
+    <script>
+      /* ---------------------------------------------------------------------
+         1. 桥：把「鼠标在不在角色上」报给外壳
+            · Electron  → preload 暴露 window.handsomeFishBridge
+            · WebView2  → window.chrome.webview.postMessage
+            · 浏览器调试 → 打到 console
+         外壳据此决定放不放行鼠标（Electron 的 setIgnoreMouseEvents /
+         Win32 的 WS_EX_TRANSPARENT），实现「角色可点、其余区域穿透」。
+         --------------------------------------------------------------------- */
+      window.__HF_BRIDGE_LOG__ = [];
+
+      function sendToShell(msg) {
+        try {
+          if (typeof window.handsomeFishBridge === "function") {
+            window.handsomeFishBridge(msg); /* Electron preload */
+          } else if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) {
+            window.chrome.webview.postMessage(msg); /* WebView2 */
+          } else {
+            window.__HF_BRIDGE_LOG__.push(msg);
+            console.log("[handsomeFish bridge]", JSON.stringify(msg));
+          }
+        } catch (error) {
+          console.error("[handsomeFish] bridge failed:", error);
+        }
+      }
+
+      window.__HANDSOME_FISH_BRIDGE__ = sendToShell;
+
+      /* ---------------------------------------------------------------------
+         1.5 状态路由的绝对地址
+             桌面窗是 file:// 源，相对路径取不到 DSH 的 HTTP 路由；外壳（main.js）
+             从 DSH_WEB_URL 或 ~/.dsh/mobile-access/setup.json 解析出 host，经
+             preload 的 handsomeFishConfig 传进来。拿不到就不覆盖 —— 客户端会退回
+             相对路径，只是没有结束音，其余功能不受影响。
+         --------------------------------------------------------------------- */
+      try {
+        const cfg = window.handsomeFishConfig;
+        if (cfg && typeof cfg.eventsUrl === "string" && cfg.eventsUrl) {
+          window.__HANDSOME_FISH_EVENTS_URL__ = cfg.eventsUrl;
+        }
+      } catch (error) {
+        console.warn("[handsomeFish] 读取 handsomeFishConfig 失败:", error);
+      }
+
+      /* 调试用出口：?events=<绝对地址>（仅在页面本身是 http(s) 源时才有用） */
+      try {
+        const q = new URLSearchParams(location.search).get("events");
+        if (q) window.__HANDSOME_FISH_EVENTS_URL__ = q;
+      } catch (error) {
+        /* ignore */
+      }
+
+      /* ---------------------------------------------------------------------
+         1.6 「一轮对话结束」的来源：外壳 IPC
+             实测：Chromium 禁止 file:// 页面 fetch http://（得到 Failed to fetch），
+             所以桌面窗里前端**不能**自己轮询 DSH —— 轮询由外壳在 Node 侧做，
+             这里只负责把推来的事件翻译成客户端认识的 window 事件。
+             同时关掉客户端自己的轮询，避免白试三次。
+         --------------------------------------------------------------------- */
+      window.__HANDSOME_FISH_NO_POLL__ = true;
+
+      try {
+        if (window.handsomeFishTurns && typeof window.handsomeFishTurns.subscribe === "function") {
+          window.handsomeFishTurns.subscribe((payload) => {
+            console.log("[handsomeFish] 收到轮次事件", JSON.stringify(payload || {}));
+            window.dispatchEvent(new CustomEvent("handsome-fish:turn-end", { detail: payload || null }));
+          });
+        }
+      } catch (error) {
+        console.warn("[handsomeFish] 订阅轮次事件失败:", error);
+      }
+
+      /* ---------------------------------------------------------------------
+         1.7 默认角色图 —— 把用户自己的素材带进桌面挂件
+             桌面载体是 file:// 源，可以直接用相对路径引用仓库里的图。
+             换角色：改这一行的 DEFAULT_ART，或用 ?art=../assets/xxx.png 临时指定。
+             （用户右键上传过的图优先级更高，存在 localStorage 里。）
+         --------------------------------------------------------------------- */
+      const DEFAULT_ART = "../assets/pet-xiaolv.png";
+      try {
+        const q = new URLSearchParams(location.search).get("art");
+        window.__HANDSOME_FISH_DEFAULT_ART__ = q || DEFAULT_ART;
+      } catch (error) {
+        window.__HANDSOME_FISH_DEFAULT_ART__ = DEFAULT_ART;
+      }
+
+      /* ---------------------------------------------------------------------
+         2. 最小宿主桩：和 DSH 宿主一样，把 factory 物化后调用 apply(ctx)
+         --------------------------------------------------------------------- */
+      window.__PREVIEW_CTX__ = {
+        on() {
+          return () => {};
+        },
+        inject(_names, cb) {
+          void cb;
+          return () => {};
+        },
+      };
+
+      window.__ModuleLoader__ = {
+        load(entry) {
+          try {
+            const mod = entry.factory(function require(name) {
+              throw new Error("desktop carrier: no platform module available: " + name);
+            });
+            mod.apply(window.__PREVIEW_CTX__);
+            window.__HF_LOADED__ = entry.id;
+          } catch (error) {
+            console.error("[handsomeFish] load failed:", error);
+            document.title = "加载失败：" + error.message;
+          }
+        },
+      };
+    </script>
+
+    <!-- 角色本体：与 DSH 插件用的是同一个文件 -->
+    <script src="../lib/client.js"></script>
+
+    <script>
+      /* ---------------------------------------------------------------------
+         3. ?selftest=1：机读自检
+            验证三件事：桥收到 ready、鼠标进角色会报 hover、桌面模式下多出退出按钮。
+            结果写进 #hf-selftest，方便用 headless Chrome 的 --dump-dom 直接抓文本。
+         --------------------------------------------------------------------- */
+      if (location.search.includes("selftest")) {
+        /* 用 async IIFE：因为要 await 图片解码 —— 素材图是异步加载的，
+           不等它就会把 "还在加载" 误报成 "0x0 加载失败"。 */
+        void (async () => {
+        const lines = [];
+        let pass = 0;
+        let fail = 0;
+        const ok = (name, cond, extra) => {
+          if (cond) pass++;
+          else fail++;
+          lines.push((cond ? "PASS  " : "FAIL  ") + name + (extra ? "  [" + extra + "]" : ""));
+        };
+
+        const api = window.__HANDSOME_FISH__;
+        ok("client.js 已物化并 apply", !!api && window.__HF_LOADED__ === "dsh-handsome-fish", window.__HF_LOADED__);
+
+        const ready = window.__HF_BRIDGE_LOG__.find((m) => m.type === "ready");
+        ok("桥收到 ready", !!ready, ready ? JSON.stringify(ready) : "无");
+        ok("桥判定载体为 desktop", !!ready && ready.carrier === "desktop");
+
+        const fish = document.querySelector(".dsh-handsome-fish-fish");
+        ok("角色 DOM 存在", !!fish);
+
+        /* 素材是否真的接进来了：光看"没报错"不够，必须证明图片真的解码成功。
+           图片是异步解码的，所以这里 await —— 否则会把"还在加载"误判为加载失败。 */
+        const artImg = document.querySelector(".hf-img");
+        const artSrc = artImg ? artImg.getAttribute("src") : "";
+        if (!artImg) {
+          ok("默认角色图已加载（用户素材接入桌面载体）", false, "没有 .hf-img（仍在用程序化 SVG）");
+        } else {
+          try {
+            await artImg.decode();
+            ok(
+              "默认角色图已加载（用户素材接入桌面载体）",
+              artImg.naturalWidth > 0,
+              `${artSrc} → 实际 ${artImg.naturalWidth}x${artImg.naturalHeight}`,
+            );
+          } catch (error) {
+            ok("默认角色图已加载（用户素材接入桌面载体）", false, `${artSrc} 解码失败：${error.message}`);
+          }
+        }
+        ok("挂件已切到自定义角色模式", !!fish && fish.classList.contains("is-custom"));
+
+        if (fish) {
+          const before = window.__HF_BRIDGE_LOG__.length;
+          fish.dispatchEvent(new PointerEvent("pointerenter", { bubbles: false }));
+          const hoverOn = window.__HF_BRIDGE_LOG__.slice(before).find((m) => m.type === "hover");
+          ok("鼠标进入角色 → 桥报 hover:true", !!hoverOn && hoverOn.on === true, JSON.stringify(hoverOn || null));
+
+          fish.dispatchEvent(new PointerEvent("pointerleave", { bubbles: false }));
+          const hoverOff = window.__HF_BRIDGE_LOG__.slice(before).find((m) => m.type === "hover" && m.on === false);
+          ok("鼠标离开角色 → 桥报 hover:false", !!hoverOff);
+        }
+
+        const say = document.querySelector(".dsh-handsome-fish-say");
+        ok(
+          "台词气泡隐藏时不抢鼠标",
+          !!say && getComputedStyle(say).pointerEvents === "none",
+          say ? getComputedStyle(say).pointerEvents : "无",
+        );
+
+        /* 同一个元素的相反状态：显示时必须能接收点击（点一下收起），否则气泡点不掉 */
+        if (api && typeof api.say === "function") api.say("自检用的台词");
+        const sayOn = document.querySelector(".dsh-handsome-fish-say");
+        ok(
+          "台词气泡显示时可接收点击",
+          !!sayOn && sayOn.classList.contains("is-on") && getComputedStyle(sayOn).pointerEvents === "auto",
+          sayOn
+            ? "is-on=" + sayOn.classList.contains("is-on") + " pointer-events=" + getComputedStyle(sayOn).pointerEvents
+            : "无",
+        );
+
+        const quit = document.querySelector('[data-act="quit"]');
+        ok("桌面模式下菜单多出「退出挂件」", !!quit);
+
+        const layer = document.getElementById("dsh-handsome-fish");
+        ok("挂件层已注入", !!layer);
+        ok(
+          "页面保持透明（不盖住桌面）",
+          getComputedStyle(document.body).backgroundColor === "rgba(0, 0, 0, 0)",
+          getComputedStyle(document.body).backgroundColor,
+        );
+
+        const stage = document.querySelector(".dsh-handsome-fish-stage");
+        ok("角色已定位在视口内", !!stage && parseFloat(stage.style.left) >= 0 && parseFloat(stage.style.top) >= 0,
+          stage ? stage.style.left + "," + stage.style.top : "无");
+
+        /* --- 外壳推入「一轮结束」这条链路：派发 window 事件 → 角色应当做出反应 --- */
+        const sayProbe = document.querySelector(".dsh-handsome-fish-say");
+        if (sayProbe) {
+          sayProbe.classList.remove("is-on");
+          sayProbe.textContent = "";
+          window.dispatchEvent(new CustomEvent("handsome-fish:turn-end"));
+          ok(
+            "外壳推入轮次事件 → 角色做出反应",
+            sayProbe.classList.contains("is-on") && sayProbe.textContent.length > 0,
+            sayProbe.textContent || "无反应",
+          );
+        }
+
+        lines.push("");
+
+        /* 信息性：轮次事件从哪来（桌面载体应为 IPC；纯浏览器自检时没有外壳） */
+        lines.push(
+          "INFO  轮次事件源：" +
+            (window.handsomeFishTurns && typeof window.handsomeFishTurns.subscribe === "function"
+              ? "外壳 IPC（轮询在 Node 侧）"
+              : "无（纯浏览器环境，没有外壳）"),
+        );
+        lines.push("INFO  前端自轮询：" + (window.__HANDSOME_FISH_NO_POLL__ ? "已关闭（桌面载体）" : "开着"));
+
+        lines.push("");        lines.push(`viewport ${innerWidth}x${innerHeight}`);
+        lines.push(`结果：${pass} 通过 / ${fail} 失败`);
+        document.title = fail === 0 ? "SELFTEST-OK" : "SELFTEST-FAIL";
+
+        /* 同时打一行机读汇总：headless 下可以用 --enable-logging=stderr 抓它 */
+        console.log("HF-SELFTEST " + (fail === 0 ? "OK" : "FAIL") + " pass=" + pass + " fail=" + fail);
+        for (const line of lines) console.log("HF-SELFTEST| " + line);
+
+        const pre = document.createElement("pre");
+        pre.id = "hf-selftest";
+        pre.textContent = lines.join("\n");
+        document.body.appendChild(pre);
+        })();
+      }
+    </script>
+  </body>
+</html>

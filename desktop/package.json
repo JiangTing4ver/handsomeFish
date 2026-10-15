@@ -1,0 +1,14 @@
+{
+  "name": "handsome-fish-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "handsomeFish 的真·桌面级外壳：把 lib/client.js 里同一个帅鱼承载在一块透明、置顶、默认可点击穿透的窗口上，可以放在整个桌面的任意位置。",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron --no-sandbox .",
+    "start:debug": "electron --no-sandbox . --devtools"
+  },
+  "devDependencies": {
+    "electron": "^44.7.2"
+  }
+}
