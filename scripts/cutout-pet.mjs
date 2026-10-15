@@ -88,6 +88,13 @@ const TOL = Number(opt("tol", 36));
 const ALREADY_CUT = flag("already-cut");
 /* 只保留最大的一块连通区域（角色本体），自动丢掉气泡/文字/桌面线/动效符号那些小块 */
 const MAIN_ONLY = flag("main");
+/* 抠图前把前景膨胀 N 像素以封住细缝（形态学闭运算的思想）。
+   为什么需要：作者那张「莞尔一笑」的头部圆圈顶端有个小缺口，flood fill 会从缺口
+   漏进脑袋里、把头的白色填色吃成透明，`--main` 随后又把眼嘴当孤立小块丢掉 ——
+   表现就是"白圈没有脸"。默认 0（关），遇到漏填的图用 2 左右即可。 */
+const CLOSE = Math.max(0, Math.round(Number(opt("close", 0))) || 0);
+/* 补洞：把被角色包围的透明区还原（默认开）。见页面里 1.3) 的说明 —— 头有缺口时必用 */
+const FILL_HOLES = !flag("no-fill-holes");
 
 /* ---------------- 找浏览器 ---------------- */
 const CANDIDATES = [
@@ -125,7 +132,7 @@ const page = `<!doctype html>
 <script>
 const OUT_W = ${OUT_W}, OUT_H = ${OUT_H};
 const TH = ${TH}, PAD = ${PAD}, FEATHER = ${FEATHER};
-const BG = ${JSON.stringify(BG)}, TOL = ${TOL}, ALREADY_CUT = ${ALREADY_CUT}, MAIN_ONLY = ${MAIN_ONLY};
+const BG = ${JSON.stringify(BG)}, TOL = ${TOL}, ALREADY_CUT = ${ALREADY_CUT}, MAIN_ONLY = ${MAIN_ONLY}, CLOSE = ${CLOSE}, FILL_HOLES = ${FILL_HOLES};
 const CROP = ${CROP ? JSON.stringify(CROP) : "null"};
 const src = new Image();
 src.onload = () => { try { run(); } catch (e) { log("FAIL " + e.name + ": " + e.message); } };
@@ -182,6 +189,63 @@ function run() {
           return d[i] >= TH && d[i + 1] >= TH && d[i + 2] >= TH;
         };
 
+  /* ---- 1.2) 封缝：把前景膨胀 N 像素，落在膨胀区里的像素一律不当背景 ----
+     只影响"哪些像素会被判为背景"，不会改动画素本身；因此不会啃掉角色的描边。 */
+  let sealed = null;
+  if (CLOSE > 0 && !ALREADY_CUT) {
+    let cur = new Uint8Array(sw * sh);
+    for (let p = 0; p < sw * sh; p++) cur[p] = isBg(p) ? 0 : 1;
+    const fgCount = cur.reduce((a, b) => a + b, 0);
+    for (let it = 0; it < CLOSE; it++) {
+      const next = Uint8Array.from(cur);
+      for (let y = 0; y < sh; y++) {
+        for (let x = 0; x < sw; x++) {
+          const p = y * sw + x;
+          if (cur[p]) continue;
+          if (
+            (x > 0 && cur[p - 1]) ||
+            (x < sw - 1 && cur[p + 1]) ||
+            (y > 0 && cur[p - sw]) ||
+            (y < sh - 1 && cur[p + sw])
+          ) {
+            next[p] = 1;
+          }
+        }
+      }
+      cur = next;
+    }
+    sealed = cur;
+    log("封缝：前景 " + fgCount + " px → 膨胀 " + CLOSE + " 次后 " + cur.reduce((a, b) => a + b, 0) + " px");
+  }
+  const isRealBg = sealed ? (p) => !sealed[p] && isBg(p) : isBg;
+
+  /* ---- 1.25) 擦掉封缝留下的白边 ----
+     只看"紧邻透明区、且本身接近白色"的像素：黑描边不接近白色，所以不会被啃掉；
+     而封缝时被误留的背景白边会被逐圈清干净。 */
+  if (sealed) {
+    for (let it = 0; it < CLOSE; it++) {
+      const snap = Uint8ClampedArray.from(d);
+      let removed = 0;
+      for (let y = 0; y < sh; y++) {
+        for (let x = 0; x < sw; x++) {
+          const i = (y * sw + x) * 4;
+          if (snap[i + 3] === 0) continue;
+          const nearT =
+            (x < 1 || snap[(y * sw + x - 1) * 4 + 3] === 0) ||
+            (x >= sw - 1 || snap[(y * sw + x + 1) * 4 + 3] === 0) ||
+            (y < 1 || snap[((y - 1) * sw + x) * 4 + 3] === 0) ||
+            (y >= sh - 1 || snap[((y + 1) * sw + x) * 4 + 3] === 0);
+          if (!nearT) continue;
+          if (snap[i] >= TH && snap[i + 1] >= TH && snap[i + 2] >= TH) {
+            d[i + 3] = 0;
+            removed++;
+          }
+        }
+      }
+      if (!removed) break;
+    }
+  }
+
   const seen = new Uint8Array(sw * sh);
   const stack = [];
   const push = (p) => { if (!seen[p]) stack.push(p); };
@@ -192,7 +256,7 @@ function run() {
     const p = stack.pop();
     if (seen[p]) continue;
     seen[p] = 1;
-    if (!isBg(p)) continue;
+    if (!isRealBg(p)) continue;
     d[p * 4 + 3] = 0;
     cleared++;
     const x = p % sw, y = (p - x) / sw;
@@ -200,6 +264,48 @@ function run() {
     if (x < sw - 1) push(p + 1);
     if (y > 0) push(p - sw);
     if (y < sh - 1) push(p + sw);
+  }
+
+  /* ---- 1.3) 补洞：把「被角色包住的透明区」还原成不透明 ----
+     为什么必须有这一步：作者的简笔画里，头部圆圈顶端常有个缺口（十几像素宽），
+     flood fill 会从缺口**漏进脑袋里**、把头的白色填色吃成透明；随后"只留最大连通块"
+     又把眼、嘴当成孤立小块丢掉 —— 用户看到的就是"白圈没有脸"。
+     漏进去的区域有个决定性特征：**它与图像边缘不连通**。所以把这类封闭空洞还原即可。
+     （默认开；--no-fill-holes 可关，用于本来就该有洞的素材。）
+     注意：本文件这一段处在模板字符串里，注释里**不能出现反引号**（会把模板提前闭合）。 */
+  let restored = 0;
+  if (FILL_HOLES && !ALREADY_CUT) {
+    const visited = new Uint8Array(sw * sh);
+    const tstack = [];
+    const pushT = (p) => {
+      if (!visited[p] && d[p * 4 + 3] <= 8) {
+        visited[p] = 1;
+        tstack.push(p);
+      }
+    };
+    for (let x = 0; x < sw; x++) {
+      pushT(x);
+      pushT((sh - 1) * sw + x);
+    }
+    for (let y = 0; y < sh; y++) {
+      pushT(y * sw);
+      pushT(y * sw + sw - 1);
+    }
+    while (tstack.length) {
+      const p = tstack.pop();
+      const x = p % sw;
+      const y = (p - x) / sw;
+      if (x > 0) pushT(p - 1);
+      if (x < sw - 1) pushT(p + 1);
+      if (y > 0) pushT(p - sw);
+      if (y < sh - 1) pushT(p + sw);
+    }
+    for (let p = 0; p < sw * sh; p++) {
+      if (d[p * 4 + 3] <= 8 && !visited[p]) {
+        d[p * 4 + 3] = 255;
+        restored++;
+      }
+    }
   }
 
   /* ---- 1.5) 只保留最大的一块连通区域（角色本体）----
@@ -299,7 +405,8 @@ function run() {
       " | 边缘软化 " + (FEATHER ? "开" : "关"));
   log("清掉背景 " + (100 * cleared / total).toFixed(1) + "% | 角色包围盒 " + bw + "x" + bh +
       " @" + minX + "," + minY + " | 不透明 " + (100 * opaque / total).toFixed(1) + "%" +
-      (MAIN_ONLY ? " | 丢掉非主体小块 " + dropped + " px" : ""));
+      (MAIN_ONLY ? " | 丢掉非主体小块 " + dropped + " px" : "") +
+      (FILL_HOLES ? " | 补回封闭空洞 " + restored + " px" : ""));
   log("输出 " + OUT_W + "x" + OUT_H + " | 角色绘制 " + dw + "x" + dh + " @" + dx + "," + dy +
       " | 缩放 " + (scale * 100).toFixed(1) + "%");
   log("DONE");
