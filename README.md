@@ -1,7 +1,9 @@
 # handsomeFish · DSH 桌面宠物挂件（小蓝）
 
 > 住在 DeepSeek Harness 界面角落的**小蓝**（《小绿和小蓝》· 机器人篇的程序员/发明家）：
-> 程序化 SVG 角色 + 部件级待机动画 + 点击互动 + 拖拽边缘吸附 + 随机台词气泡 + Web Audio 程序化合成音效。
+> **角色来自作者原画**：把图（或 `scripts/cutout-pet.mjs` 抠好的透明 PNG）放进本地 `assets/`，
+> 由 `assets/art-manifest.json` 按状态切换；再加点击互动、拖拽边缘吸附、随机台词气泡、
+> Web Audio 程序化合成音效。**第三方美术不入库**，所以仓库里的示例图用的是内置兜底角色。
 > 标准 DSH bundle 插件，`dsh plugin` 一键安装，**零素材依赖、零网络请求**。
 > 角色形象来自笛子Ocarina 的《小绿和小蓝》。
 >
@@ -10,7 +12,7 @@
 > [素材收件规范](docs/asset-intake.md)（你怎么把图片信息给我，我按它生产）·
 > [AI 生图提示词](docs/character-spec.md) · [桌面外壳](desktop/README.md)
 
-![小蓝默认形象](docs/shots/default.png)
+![角色（示例图是内置兜底线稿；实际默认显示本地 assets/ 里的作者原画）](docs/shots/default.png)
 
 ---
 
@@ -169,7 +171,7 @@ ctx.inject(['webServer'], (webCtx) => {
 | | dsh-whale-widget | 本插件 |
 |---|---|---|
 | 形态 | DSH 界面内挂件（另有独立仓库做桌面级 Electron 版） | DSH 界面内挂件 |
-| 角色 | 鲸鱼娘（美术资源随包分发，不在 MIT 覆盖范围） | **小蓝**：程序化 SVG（零素材，可一键换成你自己的图） |
+| 角色 | 鲸鱼娘（美术资源随包分发，不在 MIT 覆盖范围） | **小蓝**：作者原画放在本地 `assets/`（不入库），按状态切换；另有内置线稿兜底 |
 | 宿主状态 | 余额 / 今日已用 / 逐轮 token 消耗 / 待授权 | 仅「一轮对话结束」计数 |
 | 路由数量 | 26 条 | 1 条 |
 | 音效 | 内置 wav/mp3 资源 | Web Audio 现场合成，无文件 |
@@ -306,8 +308,20 @@ dsh plugin --profile desktop remove dsh-handsome-fish
 换回默认：右键 → `默认角色`。
 自定义图会保留浮动与 Q 弹，但失去呆毛摆动、眨眼、呼吸等 SVG 专属动画（那些是部件级动画）。
 
-**② 改程序化 SVG（推荐，动效最全）**
-`lib/client.js` 里搜 `function xiaolanSVG()`，整段就是角色定义。所有可动部件都带类名，加进对应 CSS 动画即可：
+**② 换素材（推荐，也是本项目的实际做法）**
+
+把图放进 `assets/`，写一份 `assets/art-manifest.json`（多套原画集，见
+[architecture.md](docs/architecture.md) §6.8），角色就换成你的图并按状态自动切换：
+
+```powershell
+node scripts\cutout-pet.mjs "_refs\...\某张图.png" "assets\my-1.png" --main   # 抠成透明 PNG
+```
+
+**③ 改内置线稿的部件动画（历史遗留，即将删除）**
+
+> 内置那套手画线稿（`xiaolanSimpleSVG()`）**入口已关闭、计划删除**：
+> 它能覆盖全部状态，但"只是近似作者画风" —— 用户的判断是**能拿到原画就不该用手画的凑数**。
+> 下面这张表只在你还想改它时有用（部件类名与动画的对应关系）：
 
 | 类名 | 部件 | 内置动画 |
 |---|---|---|
@@ -346,7 +360,7 @@ dsh plugin --profile desktop remove dsh-handsome-fish
 | 飘在整个桌面上、可点击穿透 | ✅ **已实现**，见 [desktop/](desktop/README.md)：全透明置顶窗口 + `setIgnoreMouseEvents(true,{forward:true})` 点击穿透 + 桥上报 hover；角色与逻辑**零改动**复用 `lib/client.js`。待办只剩多显示器、开机自启、打包成 exe |
 | 显示余额 / 逐轮 token 消耗 | host 半侧读凭据服务（`DEEPSEEK_API_KEY`）拉 `/user/balance`；token 从 `assistant/message` 事件的 `data.usage` 取（`turn/end` 的 data 只有 `{turn, reason}`，没有 usage） |
 | 「需要授权 / 需要回答」时提醒 | 同一条 `session/event` 流：`tool/call` 且工具名 `ask_user_question` → 提问挂起；`approval/asked` → 授权挂起；`tool/result` 或 `turn/start`/`turn/end` 解除。上游 `wait.json` 就是这个模式 |
-| 换角色不换代码 | 见第六节；或把 `xiaolanSVG()` 换成一个加载序列帧精灵图的实现 |
+| 换角色不换代码 | 见第六节；原画集由清单驱动，加一套只改 `assets/art-manifest.json` |
 | 多只宠物 | 把 `apply()` 里的单例状态收进一个 `createPet(opts)` 工厂，按需实例化多个 |
 
 ---
@@ -382,4 +396,5 @@ dsh plugin --profile desktop remove dsh-handsome-fish
 
 ## 许可
 
-代码 MIT。角色为程序化 SVG，无第三方美术资源。
+代码 MIT。**角色原画属于第三方作品，不入库**：由使用者自行放进本地 `assets/`（已在 `.gitignore`），
+请自用于本地；公开发布/分发前需自行确认授权。仓库自带的兜底形象是内置线稿（入口已关闭、计划删除）。
