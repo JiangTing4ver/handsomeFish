@@ -43,20 +43,17 @@ function resolveDshBase() {
 const dshBase = resolveDshBase();
 const eventsUrl = dshBase ? `${dshBase}/dsh-handsome-fish/events.json` : "";
 
-/* 带 ?art= 跑：默认形象是内置程序化 SVG，图片通道只有显式指定时才走 ——
-   所以自检里主动指一张，把「素材能不能真的解码」+「file:// 相对路径能不能解析」都覆盖掉。
-   另外带 ?svg=1：本地 assets/ 有作者原画清单时，角色会优先用图片，
-   而那会盖住"内置 SVG 的两种画风 / 七种表情"这些断言 —— 自检要一条**确定性**路径。
-   作者原画本身由 scripts/fixtures/author-art-test.html 单独测（见文件末尾第三步）。
-   用的是 scripts/fixtures/art-4x3.png：我们自己画的 4:3 透明底小图（可入库）。
-   注意别改成 assets/ 下那些试验品 —— 它们派生自第三方参考图，不入库，全新克隆里不存在。 */
+/* 带 ?art= 跑：角色现在**只有图片这一条路**（内置手画线稿已按用户要求删除），
+   所以主动指一张已入库的自检图，把「素材能不能真的解码」+「file:// 相对路径能不能解析」
+   都覆盖掉。用的是 scripts/fixtures/art-4x3.png：我们自己画的 4:3 透明底小图（可入库）。
+   注意别改成 assets/ 下那些试验品 —— 它们派生自第三方参考图，不入库，全新克隆里不存在。
+   （原先还带 ?svg=1 强制走内置线稿来保证"确定性路径"；线稿删除后那个开关已一并移除。） */
 const TEST_ART = "../scripts/fixtures/art-4x3.png";
 
 const PAGE =
   "file:///" +
   join(ROOT, "desktop", "renderer.html").replace(/\\/g, "/") +
   "?selftest=1" +
-  "&svg=1" +
   "&art=" + encodeURIComponent(TEST_ART) +
   (eventsUrl ? "&events=" + encodeURIComponent(eventsUrl) : "");
 

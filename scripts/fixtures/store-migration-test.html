@@ -22,11 +22,20 @@
       当时的默认画风就被钉死在 localStorage 里 —— 之后改代码默认值对已有存档完全无效，
       表现是"改了默认画风，重启后还是旧角色"。
 
-      本页造一份**旧版存档**（有 style:"polished"、无 stylePinned 标记，另带 size=1.3 / volume=0.25）：
-        期望 → 画风被迁移成当前代码默认（art，本地无清单时渲染为简笔画），
-        而 size / volume 原样保留。
-      注意这里刻意用一个**已经被删掉的画风值**（polished 那套手画 SVG 已移除）——
-      老存档里存着它时也应当被识别为"旧默认值"并迁移掉，而不是渲染不出来。
+      本页造一份**旧版存档**，里面同时踩了两个历史包袱：
+        · style: "polished" —— 那套手画 SVG 早就删了（连 svg 这个取值都删了）；
+        · 没有 stylePinned 标记 —— 说明这个 style 是"当时的默认值"，不是用户选的。
+      另外带 size=1.3 / volume=0.25，用来验证**迁移只动画风、别的字段原样保留**。
+
+      期望：
+        1. 画风被迁移掉 —— 既不是 "polished"、也不是 "svg"（那个取值已失去意义），
+           而是注入清单里真实存在的那一套（"art"）；
+        2. size / volume 原样保留；
+        3. 角色真的渲染出来了（用注入的清单 + 已入库的自检图，所以任何克隆里都能跑）。
+
+      ⚠️ 为什么必须注入清单：迁移后画风的取值只认"清单里存在的原画集键"，
+      没有清单时正确行为是"什么都不画"，那就验证不出"迁移到了正确的键"。
+      用的是 scripts/fixtures/art-4x3.png（我们自己画的透明底小图，可入库）。
       由 scripts/selftest-desktop.mjs 在**独立 --user-data-dir** 下运行，不会碰真实存档。
     -->
     <script>
@@ -34,6 +43,14 @@
         "dsh-handsome-fish:v1",
         JSON.stringify({ style: "polished", size: 1.3, volume: 0.25 }),
       );
+      /* 清单走"旧格式单套"（键名 art），基准路径相对本页（scripts/fixtures/）。
+         ⚠️ 旧格式也要带上 states —— 客户端的入口判定是 `sets || states`，
+         只有 default 的清单会被当成"没清单"而忽略（这条踩过一次）。 */
+      window.__HANDSOME_FISH_ART_BASE__ = "./";
+      window.__HANDSOME_FISH_ART_MANIFEST__ = {
+        default: "art-4x3.png",
+        states: { click: "art-alt-4x3.png" },
+      };
       window.__PREVIEW_CTX__ = {
         on() {
           return () => {};
@@ -60,22 +77,27 @@
     <script>
       setTimeout(() => {
         const api = window.__HANDSOME_FISH__;
-        const svg = document.querySelector(".hf-svg");
-        const style = !svg
-          ? "none"
-          : svg.classList.contains("is-style-simple")
-            ? "simple"
-            : svg.classList.contains("is-style-polished")
-              ? "polished"
-              : "?";
+        const style = api ? api.state.style : "?";
         const size = api ? api.state.size : "?";
         const volume = api ? api.state.volume : "?";
-        console.log(`HF-MIG style=${style} size=${size} volume=${volume}`);
+        const img = document.querySelector(".hf-img");
+        const src = img ? img.getAttribute("src") : "";
+        /* 有清单时角色必须是**图片**；顺带把"线稿又回来了"这件事也挡住 */
+        const noLineArt = !document.querySelector(".hf-svg");
+        console.log(
+          `HF-MIG style=${style} size=${size} volume=${volume} art=${src || "-"} noLineArt=${noLineArt}`,
+        );
         console.log(
           "HF-MIG verdict=" +
-            (style === "simple" && size === 1.3 && volume === 0.25 ? "PASS" : "FAIL"),
+            (style === "art" &&
+            size === 1.3 &&
+            volume === 0.25 &&
+            /art-4x3\.png$/.test(src) &&
+            noLineArt
+              ? "PASS"
+              : "FAIL"),
         );
-      }, 400);
+      }, 600);
     </script>
   </body>
 </html>

@@ -173,14 +173,9 @@
         /* ignore */
       }
 
-      /* ?svg=1 强制用内置 SVG —— 自检需要一条不受本地素材影响的确定性路径 */
-      try {
-        if (new URLSearchParams(location.search).get("svg") === "1") {
-          window.__HANDSOME_FISH_FORCE_SVG__ = true;
-        }
-      } catch (error) {
-        /* ignore */
-      }
+      /* 注意：原先这里支持 ?svg=1 强制用内置线稿 SVG（自检要一条确定性路径）。
+         内置线稿已按用户要求删除，角色只剩图片这一条路，所以这个开关也一起去掉了 ——
+         自检改成用 ?art= 指一张**已入库的**自检图（scripts/fixtures/art-4x3.png）。 */
 
       /* ---------------------------------------------------------------------
          2. 最小宿主桩：和 DSH 宿主一样，把 factory 物化后调用 apply(ctx)
@@ -243,11 +238,19 @@
         const fish = document.querySelector(".dsh-handsome-fish-fish");
         ok("角色 DOM 存在", !!fish);
 
-        /* 角色渲染：默认是内置程序化 SVG 角色，只有显式给 ?art= 时才换成图片。
-           两种情况都要验，且图片必须真的解码成功 ——「没报错」不算证据。 */
+        /* 角色渲染：**只有图片这一条路**（内置线稿已删除）。
+           自检必须证明两件事：
+             ① 图片真的解码出来了 ——「没报错」不算证据；
+             ② 页面上**没有任何内置线稿的痕迹**（.hf-svg / 部件类名），
+                否则说明代码里那套东西又回来了。 */
         const artParam = new URLSearchParams(location.search).get("art");
         const artImg = document.querySelector(".hf-img");
-        const svgChar = document.querySelector(".hf-svg");
+        const artWrap = document.querySelector(".hf-art");
+        ok(
+          "没有内置线稿了（页面里不存在 .hf-svg）",
+          !document.querySelector(".hf-svg"),
+          document.querySelector(".hf-svg") ? "还有 .hf-svg！" : "已彻底移除",
+        );
         if (artParam) {
           if (!artImg) {
             ok("?art= 指定的角色图已接入", false, `给了 ?art= 但页面里没有 .hf-img`);
@@ -264,88 +267,87 @@
             }
           }
         } else {
-          ok("默认走内置程序化 SVG 角色（未指定 ?art）", !!svgChar, svgChar ? "内联 SVG" : "没有 .hf-svg");
+          /* 不带 ?art= 时角色来自 assets/ 的作者原画；全新克隆里 assets/ 是空的，
+             此时**什么都不画**才是正确行为（不能退回手画线稿） */
+          ok(
+            "角色已渲染（只有图片这一条路）",
+            !!artImg || !artWrap,
+            artImg ? "作者原画/自定义图" : "没有素材 → 不画（正确）",
+          );
         }
-        ok(
-          "角色已渲染（SVG 或自定义图）",
-          !!svgChar || (!!artImg && artImg.naturalWidth > 0),
-          svgChar ? "内置 SVG" : artImg ? "自定义图" : "都没有",
-        );
 
         /* 图片角色也要"活着"：图片没有部件级动画，浮动/点头/挤压必须挂在 .hf-art 上，
            否则换成作者原画后角色会完全静止（只剩拖动倾斜） */
-        const artWrap = document.querySelector(".hf-art");
         const artAnim = artWrap ? getComputedStyle(artWrap).animationName : "none";
         ok("图片角色仍在浮动（.hf-art 动画已生效）", !!artWrap && artAnim !== "none", artAnim);
 
-        /* --- 画风切换 ---
-           要证明的不只是"能渲染"，而是**两种画风确实共用同一套 CSS 动画**：
-           光有 SVG 部件、但 CSS 没作用上，换风格就会变成一个不动的图。
-           注意本次自检是带 ?art= 跑的（角色是 <img>），所以先切回内置 SVG。 */
-        const ANIM_PARTS = [".hf-bob", ".xl-torso", ".xl-arm-l", ".xl-arm-r", ".hf-eye", ".hf-shadow"];
-        const checkStyle = (name) => {
-          api.state.style = name;
-          api.redraw();
-          const svg = document.querySelector(".hf-svg");
-          const arm = document.querySelector(".xl-arm-l");
-          return {
-            marker: !!svg && svg.classList.contains("is-style-" + name),
-            missing: ANIM_PARTS.filter((sel) => !document.querySelector(sel)),
-            /* 最强的一条：CSS 关键帧真的落到了这个画风的部件上 */
-            running: arm ? getComputedStyle(arm).animationName : "none",
-          };
-        };
-
+        /* --- 画风 / 原画链路 ---
+           内置线稿（那套手画 SVG：两种画风标记 + 六个可动部件 + 7 种表情）已按用户要求
+           删除，所以这一段改验**图片这一条链路还活着**：
+             · 换画风 / 清掉自定义图之后，角色仍然经 .hf-art 渲染，动画没断；
+             · 调试 API 里不再暴露线稿那套（face / 表情）；
+             · 下拉里的每一档都是原画集，没有 `svg` 这种已经不存在的取值。
+           注意本次自检是带 ?art= 跑的（角色是 <img>），所以先把自定义图清掉。 */
         if (api && typeof api.setArt === "function") {
-          api.setArt(""); /* 从 ?art= 的图片切回内置 SVG */
-          for (const name of ["simple"]) {
-            const r = checkStyle(name);
+          const prevStyleBeforeStyleChecks = api.state.style;
+          api.setArt(""); /* 清掉 ?art= 的自定义图，回到"按画风走清单原画" */
+          if (artParam) {
+            /* 清了自定义图后是否还有角色，取决于本地 assets/ 有没有清单：
+               有清单 → 落在清单第一套原画上（应该仍然有图）
+               没有清单 → 什么都不画（这是正确行为，绝不能再退回手画线稿） */
+            const imgAfterReset = document.querySelector(".hf-img");
             ok(
-              `内置画风 ${name}：标记 + 六个可动部件齐全`,
-              r.marker && r.missing.length === 0,
-              r.missing.length ? "缺 " + r.missing.join(",") : "部件齐全",
-            );
-            ok(
-              `内置画风 ${name}：CSS 关键帧已生效`,
-              r.running !== "none",
-              r.running,
+              "清掉自定义图之后：有素材就用原画，没素材就什么都不画（不退回线稿）",
+              !!imgAfterReset || !document.querySelector(".hf-svg"),
+              imgAfterReset ? "落回清单原画：" + imgAfterReset.getAttribute("src") : "本机无素材 → 不画（正确）",
             );
           }
-          api.state.style = "simple";
-          api.redraw(); /* 复原，后面的检查按默认画风继续 */
+          /* ⚠️ 这里必须**重新查一次** .hf-art：上面那个 artWrap 是入口状态的快照，
+             setArt("") 之后 DOM 可能已经被重建过了。 */
+          const wrap2 = document.querySelector(".hf-art");
+          const anim2 = wrap2 ? getComputedStyle(wrap2).animationName : "none";
+          ok(
+            "换画风/换图之后仍挂在 .hf-art 上，动画没断",
+            !wrap2 || anim2 !== "none",
+            wrap2 ? anim2 : "没有图片（本机无素材时的正常状态）",
+          );
+          api.state.style = prevStyleBeforeStyleChecks;
+          api.redraw(); /* 复原，后面的检查按入口时的画风继续 */
         }
 
-        /* --- 表情系统：7 种表情都要能出五官 --- */
-        if (api && typeof api.face === "function") {
-          const EXPS = ["neutral", "smile", "surprised", "shy", "focus", "awkward", "sleepy"];
-          const bad = [];
-          for (const st of ["simple"]) {
-            for (const name of EXPS) {
-              checkStyle(st); /* 先按该画风重建角色 */
-              api.face(name); /* 再只换面部容器 */
-              const face = document.querySelector(".hf-face");
-              if (!face || face.innerHTML.length === 0) bad.push(`${st}/${name}`);
-            }
-          }
-          ok(
-            "7 种表情都能渲染出五官",
-            bad.length === 0,
-            bad.length ? "失败：" + bad.join(",") : "7 组全部有内容",
-          );
-
-          /* 换表情必须是**原位替换面部容器**：重建角色会把正在跑的 CSS 动画打断 */
-          checkStyle("simple");
-          const faceNode = document.querySelector(".hf-face");
-          const html0 = faceNode ? faceNode.innerHTML : "";
-          api.face("focus");
-          const armAnim2 = getComputedStyle(document.querySelector(".xl-arm-l")).animationName;
-          ok("换表情：面部内容确实变了", !!faceNode && faceNode.innerHTML !== html0, "内容已替换");
-          ok("换表情：面部容器仍是同一 DOM 节点（未重建角色）", document.querySelector(".hf-face") === faceNode, "同节点");
-          ok("换表情后循环动画未中断", armAnim2 !== "none", armAnim2);
-
-          api.face("neutral");
-          api.state.style = "simple";
+        /* --- 「没有素材」时到底画什么 -------------------------------------------
+           用户的要求（docs/todo.md 第 1 项第 1 点）：没素材时**什么都不画** +
+           用气泡提示一次，**绝不能变回我画的东西**。
+           这里必须用真实链路验：强制把画风设成一个清单里不存在的键（等价于"没有素材"），
+           然后 redraw —— 容器必须是**空的**（连空白 SVG 都不许有，更不许有 <svg>）。 */
+        if (api) {
+          const savedStyle = api.state.style;
+          api.setArt(""); /* 清掉 ?art= 的自定义图，否则它优先级最高、走不到"没素材"分支 */
+          api.state.style = "__no_such_art_set__";
+          const container = document.querySelector(".dsh-handsome-fish-fish");
           api.redraw();
+          const html = container ? container.innerHTML : "?";
+          ok(
+            "没有素材时什么都不画（不退回任何内置图形）",
+            !!container && html === "",
+            html === "" ? "容器为空（正确）" : "居然画了东西：" + html.slice(0, 60),
+          );
+          ok(
+            "没有素材时也没有 .hf-svg / .hf-art 残留",
+            !document.querySelector(".hf-svg") && !document.querySelector(".hf-art"),
+            document.querySelector(".hf-svg") ? "还有 .hf-svg！" : "干净",
+          );
+          /* 恢复：把画风与自定义图放回入口时的样子 */
+          api.state.style = savedStyle;
+          api.setArt(artParam || "");
+        }
+
+        /* --- 线稿那套调试 API 必须已经不在了 --- */        if (api) {
+          ok(
+            "调试 API 里没有线稿那套（api.face 已移除）",
+            typeof api.face !== "function",
+            typeof api.face === "function" ? "api.face 还在！" : "api.face 已移除",
+          );
         }
 
         /* 气泡的位置：用户明确要求"对话框在旁边" —— 它必须落在角色**水平外侧**，
@@ -458,26 +460,29 @@
         ok("设置菜单里有画风下拉", !!styleSel);
         if (styleSel) {
           const prevStyle = api.state.style;
-          /* 选项是按清单动态生成的（各套原画集 + 内置线稿），所以这里遍历真实选项，
+          /* 选项是按清单动态生成的（每档＝一套作者原画），所以这里遍历真实选项，
              而不是写死某几个值 —— 清单换了这套测试也不用改 */
-          const values = Array.from(styleSel.options).map((o) => o.value);
+          const values = Array.from(styleSel.options)
+            .map((o) => o.value)
+            .filter((v) => v !== "");
           ok(
-            "画风下拉里没有「内置线稿」入口（用户要求关闭该入口）",
+            "画风下拉里没有「内置线稿」这个已经不存在的取值",
             !values.includes("svg"),
-            values.length ? values.join(",") : "没有任何选项（本页无素材清单时的正常状态）",
+            values.length ? values.join(",") : "没有任何原画集（本页无素材清单时的正常状态）",
           );
 
+          /* 逐个切：state 必须跟着走，且角色要经 .hf-art 渲染出来（不能"切了没反应"） */
           const bad = [];
           for (const v of values) {
             styleSel.value = v;
             styleSel.dispatchEvent(new Event("change", { bubbles: true }));
-            const got = document.querySelector(".hf-svg, .hf-img");
+            const got = document.querySelector(".hf-img");
             if (api.state.style !== v || !got) bad.push(`${v}→state=${api.state.style},渲染=${got ? "有" : "无"}`);
           }
           ok(
-            "逐个切画风：state 与渲染都跟着走（无素材时优雅退回内置线稿）",
+            "逐个切画风：state 与渲染都跟着走（有的必须是 .hf-art 里的图）",
             bad.length === 0,
-            bad.length ? bad.join(" ") : values.join(" → "),
+            bad.length ? bad.join(" ") : values.length ? values.join(" → ") : "没有可选原画集，跳过",
           );
 
           /* 复原成入口时的画风，别把状态留给下一个断言 */
