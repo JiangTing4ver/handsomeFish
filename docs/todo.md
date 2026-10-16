@@ -74,20 +74,28 @@
 
 ---
 
-## 4. `_shots/` 清理（本地临时区，不入库）
+## 4. `_shots/` 清理（本地临时区，不入库）—— 已清过一轮 ✅
 
-64 个文件 / 2.8 MB。**必须保留**：
+原本 73 个文件 / 3.04 MB → 清到 **41 个 / 0.66 MB**。
+删掉的是**一次性产物**：各类对比截图（`showcase*` / `candidates-*` / `state-map` /
+`refs-sheet` / `cutout-check` / `simple-set*` / `two-sets` / `th-cmp` / `close-cmp` /
+`cmp2` / `cmp-polished` / `zoom-smile` / `friend-cmp` / `simple-v2|v3` / `new-assets` /
+`ray` / `t14` / `bubble-*` / `light-check` / `say-side` / `s2-*`）、
+三份 `client.before*.js` 备份、以及 `find-interp.cjs` / `del-svg.cjs`。
+**是移到回收站，不是永久删除**（这个目录曾误删过用户的东西，已从回收站捞回过）。
+
+**保留**（用户点名的工具与截图、可复用生成器、所有 `.cjs`）：
 
 - 用户自己的工具与截图：`xl-lab.html`、`anim-check.html`、`xl2.png`、`xl_final.png`、
-  `int1.png`、`int_menu.png`、`int_left.png`（曾误删过一次，已从回收站捞回）
-- 可复用的生成器：`expr-sheet.html`（7 表情对照表，**已随表情系统作废**）、
-  各类 `*-cmp/sheet/check.html`
-- 脚本：`cut-lineart.cjs`（这次删线稿用的，带反向断言的模板）、`cut-polished2.cjs`、
-  `lines-report.cjs`（量台词长度）、`add-random-idle.cjs`、`add-friend-button.cjs`
-- 备份：`client.before-lineart.js`（删线稿前的 client.js，出问题可对照）
+  `int1.png`、`int_menu.png`、`int_left.png`
+- 各种 `*-cmp/sheet/check/*-set*.html` 画廊页（配 `preview.html?art=` 还能用）
+- 脚本：`cut-lineart.cjs`（这次删线稿用的**反向断言模板**，下次删大块代码照它写）、
+  `cut-polished2.cjs`、`lines-report.cjs`（量台词长度）、`add-random-idle.cjs`、
+  `add-friend-button.cjs`、`add-sound-styles.cjs`、`fix-silent-buttons.cjs`、
+  `fix-sound-styles.cjs`
 
-**可删**：各种一次性对比 PNG、`client.before*.js` 备份（确认稳定后）、`find-interp.cjs`、
-`del-svg.cjs`。
+> 注：`expr-sheet.html` / `expressions.html` / `simple-v2.html` 用的是 `?expr=`，
+> 那个参数随表情系统一起删了 —— 页面还在、但已经出不了图，属于"留着当历史"。
 
 ---
 
