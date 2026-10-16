@@ -10,7 +10,8 @@
 > **📚 文档索引**：[技术文档](docs/architecture.md)（架构 / 平台 API / 数据流 / 验证体系 / 踩坑清单）·
 > [角色考证](docs/xiaolan.md) · [素材规格](docs/asset-checklist.md) ·
 > [素材收件规范](docs/asset-intake.md)（你怎么把图片信息给我，我按它生产）·
-> [AI 生图提示词](docs/character-spec.md) · [桌面外壳](desktop/README.md)
+> [AI 生图提示词](docs/character-spec.md) · [桌面外壳](desktop/README.md) ·
+> [**待办清单（交接用）**](docs/todo.md)
 
 ![角色（示例图是内置兜底线稿；实际默认显示本地 assets/ 里的作者原画）](docs/shots/default.png)
 
