@@ -231,7 +231,13 @@ check("本地原画清单：引用的图都在（有 assets/ 时才检查）", (
     assert(typeof s.default === "string" && s.default, `原画集「${key}」缺少 default`);
     const states = s.states && typeof s.states === "object" ? s.states : {};
     stateCount += Object.keys(states).length;
-    for (const name of [s.default].concat(Object.values(states))) {
+    /* 状态的值可以是单个文件名，也可以是数组（一个状态多张图 → 随机出） */
+    const names = [s.default];
+    for (const v of Object.values(states)) {
+      if (Array.isArray(v)) names.push(...v);
+      else names.push(v);
+    }
+    for (const name of names) {
       if (typeof name !== "string" || !name || !existsSync(join(dir, name))) missing.push(`${key}:${name}`);
       else if (!/\.png$/i.test(name)) notPng.push(`${key}:${name}`);
     }
