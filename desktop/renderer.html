@@ -395,6 +395,42 @@
           );
         }
 
+        /* --- 音效风格下拉：四套预设都要真的能选中并改变 state ---
+           用户报过「切了没反应」那类问题（控件在、但没接上处理器），
+           所以这里必须**由控件本身**驱动：设 el.value + 派发 change，
+           再读 api.state.soundStyle 是否跟着走。
+           ⚠️ change 必须 bubbles:true —— 监听器挂在 menu（父元素）上，
+           不冒泡就根本到不了 onMenuInput，表现为"改了 state 不动"。
+           （踩过：不冒泡时这个断言实测会失败，而手动点菜单是好的。） */
+        {
+          const sel = document.querySelector('[data-k="soundStyle"]');
+          ok("设置菜单里有音效风格下拉", !!sel);
+          if (sel) {
+            const values = Array.from(sel.options).map((o) => o.value);
+            ok(
+              "音效风格下拉有四套预设",
+              ["default", "soft", "retro", "mech"].every((v) => values.includes(v)),
+              values.join(","),
+            );
+
+            const bad = [];
+            for (const v of values) {
+              sel.value = v;
+              sel.dispatchEvent(new Event("change", { bubbles: true }));
+              if (api.state.soundStyle !== v) bad.push(`${v}→state=${api.state.soundStyle}`);
+            }
+            ok(
+              "逐个切音效风格：state.soundStyle 跟着走（含切风格即试听那条分支）",
+              bad.length === 0,
+              bad.length ? bad.join(" ") : values.join(" → "),
+            );
+
+            /* 复原成入口时的值，别把状态留给后面的断言 */
+            sel.value = "default";
+            sel.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        }
+
         if (fish) {
           const before = window.__HF_BRIDGE_LOG__.length;
           fish.dispatchEvent(new PointerEvent("pointerenter", { bubbles: false }));

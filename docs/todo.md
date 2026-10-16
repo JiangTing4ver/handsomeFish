@@ -52,14 +52,18 @@
 
 ---
 
-## 2. 补完「音效风格」的三处
+## 2. 补完「音效风格」的三处 ✅
 
-四套预设（默认 / 柔和 / 复古 8-bit / 机械）已可用（`e8a0c76`），差三处：
+四套预设（默认 / 柔和 / 复古 8-bit / 机械）已可用（`e8a0c76`），三处都补齐了：
 
-1. **选中即试听**：`onMenuInput` 里加 `k === "soundStyle"` 分支 → 校验取值 +
-   `audio.pop(1.15)`，200ms 后 `audio.ding()`。
-2. **自检断言**：下拉存在、逐个切换 `state.soundStyle` 跟着变。
-3. **文档**：README 功能表 + architecture §6.5（音效：Web Audio 现场合成）补"四套风格"。
+1. ✅ **选中即试听**：`onMenuInput` 里 `k === "soundStyle"` 分支 → 校验取值 +
+   `audio.pop(1.15)`，600ms 后 `audio.ding()`。
+2. ✅ **自检断言**：下拉存在、四套预设齐全、逐个切换 `state.soundStyle` 跟着变。
+3. ✅ **文档**：README 功能表 + architecture §6.5 补上"四套风格"与试听说明。
+
+> ⚠️ 写这类断言时记住：`change` 事件**必须 `bubbles: true`**。
+> 菜单的监听器挂在 `menu` 父元素上，不冒泡就永远到不了 `onMenuInput` ——
+> 表现是"state 完全不跟着走"，很容易误判成功能没实现（这次就误判了一轮）。
 
 ---
 
