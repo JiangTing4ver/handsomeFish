@@ -350,11 +350,13 @@
 
         /* 气泡的位置：用户明确要求"对话框在旁边" —— 它必须落在角色**水平外侧**，
            而不是压在角色身上（原先贴在角色正上方，会盖住脑袋）。
-           这条断言用真实的布局矩形来验，不是看 CSS 文本。 */
+           外加一条形状断言：绝对定位 + 侧边锚定容易让可用宽度算成负数、文字一行一个字
+           缩成竖条（真踩过）。所以这里放上真台词，量它是不是**横向**的。 */
         {
           const probe = document.querySelector(".dsh-handsome-fish-say");
           const body = document.querySelector(".dsh-handsome-fish-fish");
           if (probe && body) {
+            probe.textContent = "自检用的台词，看看气泡形状对不对";
             probe.classList.add("is-on"); /* 强制显示后再量 */
             const s = probe.getBoundingClientRect();
             const f = body.getBoundingClientRect();
@@ -364,6 +366,11 @@
               "台词气泡贴在角色侧边（不压在角色上）",
               beside,
               `气泡 ${Math.round(s.left)}–${Math.round(s.right)} vs 角色 ${Math.round(f.left)}–${Math.round(f.right)}`,
+            );
+            ok(
+              "台词气泡是横向的（没有缩成竖条）",
+              s.width >= 120 && s.width > s.height,
+              `气泡 ${Math.round(s.width)}×${Math.round(s.height)}`,
             );
           }
         }
