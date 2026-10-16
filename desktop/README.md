@@ -29,7 +29,7 @@
 
 | 文件 | 作用 | 验证 |
 |---|---|---|
-| `renderer.html` | OS 级载体页：自带 `__ModuleLoader__` / `ctx` 桩，直接加载 `../lib/client.js`（默认角色＝内置 SVG 小蓝，与插件一致） | 机读自检 **15/15** |
+| `renderer.html` | OS 级载体页：自带 `__ModuleLoader__` / `ctx` 桩，直接加载 `../lib/client.js`（角色与插件用的是同一份逻辑：**图片**，仓库里不含角色素材） | 机读自检 **27/27** |
 | `../lib/client.js` 的桥 | 上报「鼠标在不在角色上」（点击穿透）、接收外部推入的轮次事件 | 自检覆盖 hover 双向 + 轮次事件触发反应 |
 | `turn-watch.js` | 轮次监视器：Node 侧轮询状态路由，检测 seq 递增 | `scripts/check.mjs` 单测 2 项（基线/递增/去重、失败退避） |
 | `main.js` | 主进程：透明置顶无边框窗口、命中测试开关、轮次监视、退出 | 语法通过，运行时实测见下 |
@@ -47,13 +47,22 @@ node scripts\selftest-desktop.mjs
 当前结果：
 
 ```
-HF-SELFTEST OK pass=15 fail=0
+HF-SELFTEST OK pass=27 fail=0
 PASS  client.js 已物化并 apply  [dsh-handsome-fish]
 PASS  桥收到 ready  [{"type":"ready","version":"0.1.0","carrier":"desktop"}]
 PASS  桥判定载体为 desktop
 PASS  角色 DOM 存在
+PASS  没有内置线稿了（页面里不存在 .hf-svg）  [已彻底移除]
 PASS  ?art= 指定的角色图已解码  [../scripts/fixtures/art-4x3.png → 实际 96x72]
-PASS  角色已渲染（SVG 或自定义图）  [自定义图]
+PASS  图片角色仍在浮动（.hf-art 动画已生效）  [hf-bob]
+PASS  清掉自定义图之后：有素材就用原画，没素材就什么都不画（不退回线稿）  [本机无素材 → 不画（正确）]
+PASS  换画风/换图之后仍挂在 .hf-art 上，动画没断  [没有图片（本机无素材时的正常状态）]
+PASS  没有素材时什么都不画（不退回任何内置图形）  [容器为空（正确）]
+PASS  没有素材时也没有 .hf-svg / .hf-art 残留  [干净]
+PASS  调试 API 里没有线稿那套（api.face 已移除）  [api.face 已移除]
+PASS  台词气泡贴在角色侧边（不压在角色上）  [气泡 395–611 vs 角色 632–856]
+PASS  台词气泡是横向的（没有缩成竖条）  [气泡 216×54]
+PASS  四个开关都是「勾上＝开启」，且默认全开  [sound / speech / snap / endSound 默认都勾上]
 PASS  鼠标进入角色 → 桥报 hover:true  [{"type":"hover","on":true}]
 PASS  鼠标离开角色 → 桥报 hover:false
 PASS  台词气泡隐藏时不抢鼠标  [none]
@@ -61,9 +70,16 @@ PASS  台词气泡显示时可接收点击  [is-on=true pointer-events=auto]
 PASS  桌面模式下菜单多出「退出挂件」
 PASS  挂件层已注入
 PASS  页面保持透明（不盖住桌面）  [rgba(0, 0, 0, 0)]
-PASS  角色已定位在视口内  [632px,310px]
-PASS  外壳推入轮次事件 → 角色做出反应  [嗯，没报错。]
+PASS  角色已定位在视口内  [632px,254px]
+PASS  外壳推入轮次事件 → 角色做出反应  [测试全绿。]
+PASS  设置菜单里有画风下拉
+PASS  画风下拉里没有「内置线稿」这个已经不存在的取值  [没有任何原画集（本页无素材清单时的正常状态）]
+PASS  逐个切画风：state 与渲染都跟着走（有的必须是 .hf-art 里的图）  [没有可选原画集，跳过]
 ```
+
+> 上面是 `?art=../scripts/fixtures/art-4x3.png` 跑出来的结果（自检脚本就是这么调的）。
+> 注意"没有任何原画集…"那几条：自检用的临时 profile 里没有 `assets/` 清单，
+> 所以那几条走的是"没有素材"分支 —— 这正是全新克隆里的真实情况。
 
 ## 通道协议
 
@@ -137,14 +153,21 @@ npm start        # electron 已装好（44.7.2）；桌面上会出现角色，�
 > Electron 44 且运行正常）。**请你在自己的终端里跑一次 `npm start`**，
 > 然后看 `desktop/handsome-fish.log` 有没有越过 `ready-to-show`。
 
-## 角色：默认是内置的小蓝，素材是可选替换
+## 角色：来自图片，仓库里不含任何角色图
 
-**默认不加载任何图片。** 桌面外壳与 DSH 插件用的是同一个 `lib/client.js`，
-角色就是里面手写的程序化 SVG **小蓝**（`xiaolanSVG()`，见 [../docs/xiaolan.md](../docs/xiaolan.md)）
-—— 零素材、零体积、部件级动画最全（呆毛/手臂/躯干/眨眼/灵感火花）。
+桌面外壳与 DSH 插件用的是同一个 `lib/client.js`，所以**角色来源与行为完全一致**：
+把图放进本地 `assets/`（配 `assets/art-manifest.json` 按状态换图），或者用右键菜单
+**「换个角色图」**临时指定一张。
 
-本地 `assets/` 是**试验品目录（不入库）**，用来放你自己转出来的角色图；它不是默认形象。
-要临时用一张图，必须显式给 `?art=`：
+**内置手画线稿已整体删除**（用户判断：能拿到作者原画时，就不该用手画的凑数），
+所以：
+
+- 没有任何素材时，挂件**什么都不画** + 用气泡提示一次
+  「还没有角色图：把图放进 assets/，或右键「换个角色图」」；
+- 桌面上仍然能拖动、右键开菜单、说话 —— 只是暂时看不见角色；
+- **不会**再退回手画的 SVG（那套连同部件级动画、7 种表情都从代码里去掉了）。
+
+本地 `assets/` 是**试验品目录（不入库）**，不是默认形象。要临时用一张图，显式给 `?art=`：
 
 ```powershell
 npm start -- --art=../scripts/fixtures/art-4x3.png   # 仓库自带的自检素材，随时可用
@@ -168,8 +191,8 @@ node scripts\make-pet-image.mjs "_refs\xiaolan\02_xiaolan_yuxiaolv.jpg" "assets\
 
 > 一条可复用的经验：**素材必须是"单人插画"** —— 封面、群像、带标题文字的图裁成圆形后
 > 一定带进杂物和字。之前用旧素材转出来的那几张试验品（`pet-xiaolv` 其实是**机器人小绿**、
-> `pet-baijin` 属于另一部作品，都不是目标角色小蓝）**已删除** —— 角色由内置 SVG 承担，
-> 不再需要这些不对的图。
+> `pet-baijin` 属于另一部作品，都不是目标角色小蓝）**已删除** —— 现在角色只由**作者原画**
+> 承担（内置那套手画线稿也已删除），这些不对的图不再需要。
 
 > 📌 **画布比例要用 4:3，不是正方形。** 舞台是 224×168（[../docs/asset-checklist.md](../docs/asset-checklist.md) 2.2），
 > 正方形图会被缩到 168×168，白白浪费 25% 宽度。

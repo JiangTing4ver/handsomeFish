@@ -171,14 +171,14 @@
         localStorage.removeItem("dsh-handsome-fish:art");
       }
 
-      /* ?style=art|simple —— 直接换画风看效果（运行中也能用右键菜单切）
-         ?expr=<表情名>      —— 强制某个表情，用于截图核对 */
+      /* ?style=<原画集键> —— 指定初始画风看效果（运行中也能用右键菜单切）。
+         ⚠️ 内置线稿已删除，所以这里**只有原画集的键**：art / mature / simple…
+         这类清单里的键，以及旧文档里的 svg / polished 都不再有效。
+         原先还有一个 ?expr=<表情名> 用来强制表情 —— 表情系统随线稿一起删除，
+         那个参数已无意义（传了也不会有效果）。 */
       try {
-        const qs = new URLSearchParams(location.search);
-        const st = qs.get("style");
-        if (st === "art" || st === "simple") window.__HANDSOME_FISH_STYLE__ = st;
-        const ex = qs.get("expr");
-        if (ex) window.__HANDSOME_FISH_EXPRESSION__ = ex;
+        const st = new URLSearchParams(location.search).get("style");
+        if (st) window.__HANDSOME_FISH_STYLE__ = st;
       } catch (error) {
         /* ignore */
       }
