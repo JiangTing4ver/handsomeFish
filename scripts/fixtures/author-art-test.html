@@ -87,13 +87,19 @@
         console.log(
           `HF-ART default=${src0} click=${src1} sameWrap=${wrap0 === wrap1} decoded=${decoded} builtinSvg=${!!svg}`,
         );
+        const styleSel = document.querySelector('[data-k="style"]');
+        const styleValues = styleSel ? Array.from(styleSel.options).map((o) => o.value) : [];
+        console.log("HF-ART styleOptions=" + styleValues.join(","));
         console.log(
           "HF-ART verdict=" +
             (/art-4x3\.png$/.test(src0) &&
             /art-alt-4x3\.png$/.test(src1) &&
             wrap0 === wrap1 &&
             decoded &&
-            !svg
+            !svg &&
+            /* 画风下拉必须由清单生成，且**不含内置线稿入口**（用户要求关闭） */
+            styleValues.length >= 1 &&
+            !styleValues.includes("svg")
               ? "PASS"
               : "FAIL"),
         );

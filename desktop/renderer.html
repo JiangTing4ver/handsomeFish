@@ -444,9 +444,9 @@
              而不是写死某几个值 —— 清单换了这套测试也不用改 */
           const values = Array.from(styleSel.options).map((o) => o.value);
           ok(
-            "画风下拉至少有「内置线稿」兜底项",
-            values.includes("svg"),
-            values.length ? values.join(",") : "没有任何选项",
+            "画风下拉里没有「内置线稿」入口（用户要求关闭该入口）",
+            !values.includes("svg"),
+            values.length ? values.join(",") : "没有任何选项（本页无素材清单时的正常状态）",
           );
 
           const bad = [];
