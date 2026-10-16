@@ -75,14 +75,25 @@
         const img1 = document.querySelector(".hf-img");
         const src1 = img1 ? img1.getAttribute("src") : "";
 
-        /* 等图片真的解码出来，否则"换过去了"只是字符串层面的结论 */
-        let decoded = false;
-        try {
-          await img1.decode();
-          decoded = img1.naturalWidth > 0;
-        } catch (e) {
-          decoded = false;
+        /* 等图片真的解码出来，否则"换过去了"只是字符串层面的结论。
+           这里**必须有界轮询**：headless 的 --virtual-time-budget 下，
+           换 src 之后那一帧的解码不一定刚好在本行之前完成 —— 只看一次
+           decode() 会偶发 decoded=false（实测踩过，误报成"原画链路坏了"）。 */
+        async function waitDecoded(img, timeoutMs) {
+          const deadline = Date.now() + timeoutMs;
+          for (;;) {
+            try {
+              await img.decode();
+              if (img.naturalWidth > 0) return true;
+            } catch (e) {
+              /* 图还在下载时 decode() 会 reject：继续等，别当成结论 */
+            }
+            if (img.complete && img.naturalWidth > 0) return true;
+            if (Date.now() > deadline) return false;
+            await new Promise((r) => setTimeout(r, 60));
+          }
         }
+        const decoded = img1 ? await waitDecoded(img1, 1500) : false;
 
         console.log(
           `HF-ART default=${src0} click=${src1} sameWrap=${wrap0 === wrap1} decoded=${decoded} builtinSvg=${!!svg}`,
