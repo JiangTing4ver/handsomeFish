@@ -348,6 +348,26 @@
           api.redraw();
         }
 
+        /* 气泡的位置：用户明确要求"对话框在旁边" —— 它必须落在角色**水平外侧**，
+           而不是压在角色身上（原先贴在角色正上方，会盖住脑袋）。
+           这条断言用真实的布局矩形来验，不是看 CSS 文本。 */
+        {
+          const probe = document.querySelector(".dsh-handsome-fish-say");
+          const body = document.querySelector(".dsh-handsome-fish-fish");
+          if (probe && body) {
+            probe.classList.add("is-on"); /* 强制显示后再量 */
+            const s = probe.getBoundingClientRect();
+            const f = body.getBoundingClientRect();
+            probe.classList.remove("is-on");
+            const beside = s.right <= f.left + 2 || s.left >= f.right - 2;
+            ok(
+              "台词气泡贴在角色侧边（不压在角色上）",
+              beside,
+              `气泡 ${Math.round(s.left)}–${Math.round(s.right)} vs 角色 ${Math.round(f.left)}–${Math.round(f.right)}`,
+            );
+          }
+        }
+
         if (fish) {
           const before = window.__HF_BRIDGE_LOG__.length;
           fish.dispatchEvent(new PointerEvent("pointerenter", { bubbles: false }));
