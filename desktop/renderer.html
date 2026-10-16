@@ -375,6 +375,24 @@
           }
         }
 
+        /* --- 四个开关的语义必须一致：勾上＝该功能开启 ---
+           用户报过：「音效」勾上反而是关掉声音 —— 因为它背后存的是 muted（静音），
+           与其他三个（speech/snap/endSound）的正向语义相反。这条断言就是钉住这个坑。 */
+        {
+          const expects = { sound: true, speech: true, snap: true, endSound: true };
+          const bad = [];
+          for (const k of Object.keys(expects)) {
+            const box = document.querySelector(`[data-k="${k}"]`);
+            if (!box) bad.push(`${k} 没有控件`);
+            else if (box.checked !== expects[k]) bad.push(`${k}=${box.checked}(应为${expects[k]})`);
+          }
+          ok(
+            "四个开关都是「勾上＝开启」，且默认全开",
+            bad.length === 0,
+            bad.length ? bad.join(" ") : "sound / speech / snap / endSound 默认都勾上",
+          );
+        }
+
         if (fish) {
           const before = window.__HF_BRIDGE_LOG__.length;
           fish.dispatchEvent(new PointerEvent("pointerenter", { bubbles: false }));

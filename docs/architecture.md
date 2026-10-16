@@ -292,7 +292,7 @@ HF-MIG verdict=PASS
 
 | 键 | 内容 |
 |---|---|
-| `localStorage['dsh-handsome-fish:v1']` | 设置 JSON：大小/音量/静音/**画风**/台词/吸附/结束音/隐藏/位置锚点 + `stylePinned`（用户是否显式选过画风，见 §6.3） |
+| `localStorage['dsh-handsome-fish:v1']` | 设置 JSON：大小/音量/**音效**/画风/台词/吸附/结束音/隐藏/位置锚点 + `stylePinned`（用户是否显式选过画风，见 §6.3） |
 | `localStorage['dsh-handsome-fish:art']` | 自定义角色图的 base64 data URL（单独存，免得把设置文件撑爆） |
 
 ---
